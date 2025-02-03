@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mantis"
+name = "mantis-ai"
 version = "0.1.0"
 description = "A Python package for transcribing audio files, summarizing text, and extracting information using Gemini AI and Pydantic."
 requires-python = ">=3.9"
@@ -12,7 +12,11 @@ authors = [
 ]
 readme = "README.md"
 license = { text = "Apache 2.0" }
-
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
 
 dependencies = [
     "pydantic>=1.8",
@@ -20,12 +24,22 @@ dependencies = [
     "requests",
     "python-dotenv",
     "yt_dlp",
+]
+
+[project.optional-dependencies]
+dev = [
     "flake8",
     "black",
+    "sphinx",
+    "sphinx_rtd_theme",
+    "sphinx-autodoc-typehints",
 ]
 
 [tool.hatch.build]
 # Hatch settings for building your packages (if needed)
+
+[tool.hatch.build.targets.wheel]
+packages = ["mantis"]  # Tell Hatch to include the mantis directory
 
 [tool.hatch.version]
 path = "mantis/__init__.py"

@@ -12,27 +12,21 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Install uv
-      run: pip install uv
-
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    - name: Initialize uv environment
-      run: uv run pip install .
-
-    - name: Build distributions
+    - name: Install build dependencies
       run: |
-        uv run pip install wheel
-        uv run python setup.py sdist bdist_wheel
+        python -m pip install --upgrade pip
+        pip install hatch
 
-    - name: Publish package to PyPI
-      uses: pypa/gh-action-pypi-publish@v1.5.0
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }}
+    - name: Build package
+      run: hatch build
+
+    - name: Publish to PyPI
       env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }} 
+        HATCH_INDEX_USER: __token__
+        HATCH_INDEX_AUTH: ${{ secrets.PYPI_API_TOKEN }}
+      run: hatch publish 
