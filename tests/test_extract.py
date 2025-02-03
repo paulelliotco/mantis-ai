@@ -1,6 +1,9 @@
 import unittest
-from mantis import extract
+import importlib
+import mantis.extract as extract_module
 from unittest.mock import patch
+
+extract_module = importlib.import_module("mantis.extract")
 
 
 class TestExtraction(unittest.TestCase):
@@ -19,8 +22,8 @@ class TestExtraction(unittest.TestCase):
             "Response", (object,), {"text": "Extracted information from local file."}
         )
 
-        # Perform extraction
-        result = extract("sample_audio.mp3", "Extract key points from this audio.")
+        # Perform extraction using the module's function
+        result = extract_module.extract("sample_audio.mp3", "Extract key points from this audio.")
 
         # Assertions
         self.assertEqual(result.extraction, "Extracted information from local file.")
@@ -47,8 +50,8 @@ class TestExtraction(unittest.TestCase):
             "Response", (object,), {"text": "Extracted information from YouTube audio."}
         )
 
-        # Perform extraction
-        result = extract(
+        # Perform extraction using the module's function
+        result = extract_module.extract(
             "https://www.youtube.com/watch?v=AKJfakEsgy0&ab_channel=MrBeast",
             "Extract key points from this audio.",
         )
@@ -63,7 +66,7 @@ class TestExtraction(unittest.TestCase):
 
     def test_extract_invalid_input(self):
         with self.assertRaises(ValueError):
-            extract("invalid_audio_file.xyz", "Extract key points.")
+            extract_module.extract("invalid_audio_file.xyz", "Extract key points.")
 
 
 if __name__ == "__main__":

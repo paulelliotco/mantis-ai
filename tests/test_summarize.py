@@ -1,6 +1,9 @@
 import unittest
-from mantis import summarize
+import importlib
+import mantis.summarize as summarize_module
 from unittest.mock import patch
+
+summarize_module = importlib.import_module("mantis.summarize")
 
 
 class TestSummarization(unittest.TestCase):
@@ -17,8 +20,8 @@ class TestSummarization(unittest.TestCase):
         mock_instance = mock_model.return_value
         mock_instance.generate_content.return_value = type("Response", (object,), {"text": "Summary of local file."})
 
-        # Perform summarization
-        result = summarize("sample_audio.mp3")
+        # Perform summarization using the module's function
+        result = summarize_module.summarize("sample_audio.mp3")
 
         # Assertions
         self.assertEqual(result.summary, "Summary of local file.")
@@ -43,8 +46,8 @@ class TestSummarization(unittest.TestCase):
         mock_instance = mock_model.return_value
         mock_instance.generate_content.return_value = type("Response", (object,), {"text": "Summary of YouTube audio."})
 
-        # Perform summarization
-        result = summarize("https://www.youtube.com/watch?v=AKJfakEsgy0&ab_channel=MrBeast")
+        # Perform summarization using the module's function
+        result = summarize_module.summarize("https://www.youtube.com/watch?v=AKJfakEsgy0&ab_channel=MrBeast")
 
         # Assertions
         self.assertEqual(result.summary, "Summary of YouTube audio.")
@@ -56,7 +59,7 @@ class TestSummarization(unittest.TestCase):
 
     def test_summarize_invalid_input(self):
         with self.assertRaises(ValueError):
-            summarize("invalid_audio_file.xyz")
+            summarize_module.summarize("invalid_audio_file.xyz")
 
 
 if __name__ == "__main__":
