@@ -13,10 +13,10 @@ sys.modules["mantis.transcription"] = transcribe_module
 class TestTranscription(unittest.TestCase):
     def test_transcribe_with_local_file(self):
         # Mock is_youtube_url to return False
-        with patch("mantis.transcription.is_youtube_url") as mock_is_url:
+        with patch("mantis.utils.is_youtube_url") as mock_is_url:
             mock_is_url.return_value = False
 
-            with patch("mantis.transcription.stream_youtube_audio") as mock_stream:
+            with patch("mantis.utils.stream_youtube_audio") as mock_stream:
                 mock_stream.return_value = "temp_audio.mp3"
 
                 with patch("mantis.transcription.genai.upload_file") as mock_upload:
@@ -40,10 +40,10 @@ class TestTranscription(unittest.TestCase):
 
     def test_transcribe_with_youtube_url(self):
         # Mock is_youtube_url to return True
-        with patch("mantis.transcription.is_youtube_url") as mock_is_url:
+        with patch("mantis.utils.is_youtube_url") as mock_is_url:
             mock_is_url.return_value = True
 
-            with patch("mantis.transcription.stream_youtube_audio") as mock_stream:
+            with patch("mantis.utils.stream_youtube_audio") as mock_stream:
                 mock_stream.return_value = "temp_audio.mp3"
 
                 with patch("mantis.transcription.genai.upload_file") as mock_upload:

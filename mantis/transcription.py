@@ -2,7 +2,7 @@ import os
 from pydantic import ValidationError
 from .models import TranscriptionInput, TranscriptionOutput
 import google.generativeai as genai
-from .utils import is_youtube_url, stream_youtube_audio
+import mantis.utils as utils  # Import the module instead of individual functions
 from typing import Optional
 
 # Configure Gemini AI with your API key from environment variables.
@@ -27,10 +27,10 @@ def transcribe(audio_file: str) -> TranscriptionOutput:
         raise ValueError(f"Invalid input: {e}") from e
 
     # Use the utility function to check if the audio_file is a YouTube URL
-    if is_youtube_url(input_data.audio_file):
+    if utils.is_youtube_url(input_data.audio_file):
         try:
             # Stream audio from YouTube and get the temporary file path
-            temp_file_path = stream_youtube_audio(input_data.audio_file)
+            temp_file_path = utils.stream_youtube_audio(input_data.audio_file)
             file_to_transcribe = temp_file_path
         except Exception as e:
             raise ConnectionError(f"Failed to stream audio from YouTube: {e}") from e
