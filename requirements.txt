@@ -1,0 +1,5 @@
+pydantic>=1.8
+google-generativeai
+requests
+python-dotenv
+yt_dlp

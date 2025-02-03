@@ -1,0 +1,37 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:  # You can trigger it manually or on tag creation
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+
+      - name: Install Hatch
+        run: pip install hatch
+
+      - name: Bump patch version using Hatch
+        id: version_bump
+        run: |
+          NEW_VERSION=$(hatch version patch)
+          echo "New version: ${NEW_VERSION}"
+          # Configure Git for committing the version bump
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@users.noreply.github.com"
+          # Commit the version bump
+          git commit -am "Bump version to ${NEW_VERSION}"
+          # Tag the commit
+          git tag "v${NEW_VERSION}"
+          # Push changes and tags
+          git push && git push --tags
+          echo "::set-output name=new_version::${NEW_VERSION}"
+
+      - name: Output new version
+        run: echo "Version bumped to ${{ steps.version_bump.outputs.new_version }}" 

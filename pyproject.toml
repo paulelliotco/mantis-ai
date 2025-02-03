@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mantis"
+version = "0.1.0"
+description = "A Python package for transcribing audio files, summarizing text, and extracting information using Gemini AI and Pydantic."
+authors = [
+    { name = "Paul Elliot", email = "paul@paulelliot.com" }
+]
+readme = "README.md"
+license = { text = "Apache 2.0" }
+
+
+dependencies = [
+    "pydantic>=1.8",
+    "google-generativeai",
+    "requests",
+    "python-dotenv",
+    "yt_dlp",
+    "sphinx",
+    "sphinx_rtd_theme",
+    "sphinx-autodoc-typehints",
+    "flake8",
+    "black",
+]
+
+[tool.hatch.build]
+# Hatch settings for building your packages (if needed)
+
+[tool.hatch.version]
+path = "mantis/__init__.py"

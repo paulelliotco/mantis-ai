@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install uv
+      run: pip install uv
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+
+    - name: Initialize uv environment
+      run: uv sync --all-extras
+
+    - name: Run tests
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: |
+        python -m unittest discover -s tests
+
+    - name: Lint with flake8
+      run: |
+        uv run pip install flake8
+        uv run flake8 mantis tests --count --select=E9,F63,F7,F82 --show-source --statistics
+        uv run flake8 mantis tests --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Check formatting with black
+      run: |
+        uv run pip install black
+        uv run black --check mantis tests example_usage.py
+
+    - name: Measure Coverage
+      run: |
+        uv run pip install coverage
+        uv run coverage run -m unittest discover -s tests
+        uv run coverage report
+        uv run coverage xml
+
+    - name: Upload Coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml 
