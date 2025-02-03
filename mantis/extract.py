@@ -6,7 +6,8 @@ from .utils import is_youtube_url, stream_youtube_audio
 from typing import Optional
 
 # Configure Gemini AI with your API key from environment variables.
-genai.configure(api_key=os.getenv('GEMINI_API_KEY', 'YOUR_GEMINI_API_KEY'))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY"))
+
 
 def extract(audio_file: str, prompt: str) -> ExtractOutput:
     """
@@ -57,4 +58,4 @@ def extract(audio_file: str, prompt: str) -> ExtractOutput:
     except ValidationError as e:
         raise ValueError(f"Invalid extraction output: {e}")
 
-    return output_data 
+    return output_data

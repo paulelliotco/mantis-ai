@@ -29,3 +29,6 @@ dependencies = [
 
 [tool.hatch.version]
 path = "mantis/__init__.py"
+
+[tool.black]
+line-length = 120

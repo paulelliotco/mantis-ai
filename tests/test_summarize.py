@@ -1,13 +1,13 @@
 import unittest
 from mantis import summarize
 from unittest.mock import patch
-from mantis.summarize import is_youtube_url
+
 
 class TestSummarization(unittest.TestCase):
-    @patch('mantis.summarize.genai.upload_file')
-    @patch('mantis.summarize.genai.GenerativeModel')
-    @patch('mantis.utils.stream_youtube_audio')
-    @patch('mantis.utils.is_youtube_url')
+    @patch("mantis.summarize.genai.upload_file")
+    @patch("mantis.summarize.genai.GenerativeModel")
+    @patch("mantis.summarize.is_youtube_url")
+    @patch("mantis.summarize.stream_youtube_audio")
     def test_summarize_with_local_file(self, mock_stream, mock_is_url, mock_model, mock_upload):
         # Mock is_youtube_url to return False
         mock_is_url.return_value = False
@@ -15,11 +15,10 @@ class TestSummarization(unittest.TestCase):
         # Mock the upload_file and model
         mock_upload.return_value = "uploaded_file_id"
         mock_instance = mock_model.return_value
-        mock_instance.generate_content.return_value = type('Response', (object,), {'text': 'Summary of local file.'})
+        mock_instance.generate_content.return_value = type("Response", (object,), {"text": "Summary of local file."})
 
         # Perform summarization
         result = summarize("sample_audio.mp3")
-
 
         # Assertions
         self.assertEqual(result.summary, "Summary of local file.")
@@ -28,11 +27,10 @@ class TestSummarization(unittest.TestCase):
         mock_model.assert_called_once_with("gemini-1.5-flash")
         mock_instance.generate_content.assert_called_once()
 
-
-    @patch('mantis.summarize.genai.upload_file')
-    @patch('mantis.summarize.genai.GenerativeModel')
-    @patch('mantis.utils.stream_youtube_audio')
-    @patch('mantis.utils.is_youtube_url')
+    @patch("mantis.summarize.genai.upload_file")
+    @patch("mantis.summarize.genai.GenerativeModel")
+    @patch("mantis.summarize.is_youtube_url")
+    @patch("mantis.summarize.stream_youtube_audio")
     def test_summarize_with_youtube_url(self, mock_stream, mock_is_url, mock_model, mock_upload):
         # Mock is_youtube_url to return True
         mock_is_url.return_value = True
@@ -43,7 +41,7 @@ class TestSummarization(unittest.TestCase):
         # Mock the upload_file and model
         mock_upload.return_value = "uploaded_file_id"
         mock_instance = mock_model.return_value
-        mock_instance.generate_content.return_value = type('Response', (object,), {'text': 'Summary of YouTube audio.'})
+        mock_instance.generate_content.return_value = type("Response", (object,), {"text": "Summary of YouTube audio."})
 
         # Perform summarization
         result = summarize("https://www.youtube.com/watch?v=AKJfakEsgy0&ab_channel=MrBeast")
@@ -60,5 +58,6 @@ class TestSummarization(unittest.TestCase):
         with self.assertRaises(ValueError):
             summarize("invalid_audio_file.xyz")
 
-if __name__ == '__main__':
-    unittest.main() 
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,5 +1,4 @@
 import os
-import requests
 from pydantic import ValidationError
 from .models import TranscriptionInput, TranscriptionOutput
 import google.generativeai as genai
@@ -7,7 +6,8 @@ from .utils import is_youtube_url, stream_youtube_audio
 from typing import Optional
 
 # Configure Gemini AI with your API key from environment variables.
-genai.configure(api_key=os.getenv('GEMINI_API_KEY', 'YOUR_GEMINI_API_KEY'))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY"))
+
 
 def transcribe(audio_file: str) -> TranscriptionOutput:
     """
