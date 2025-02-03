@@ -1,177 +1,132 @@
-# Mantis
+# Mantis: Audio Processing with Large Language Models
 
-Mantis is a Python package for transcribing audio files, summarizing text, and extracting information using Gemini AI and Pydantic. It provides simple interfaces to transcribe MP3 files, summarize text, and extract key information effortlessly.
+Mantis is a Python package that makes it easy to transcribe audio files, generate summaries, and extract information using Large Language Models. Built with Pydantic for robust data validation, it provides a simple and user-friendly API for processing both local audio files and YouTube content.
 
-## 📚 Documentation
+[![PyPI version](https://badge.fury.io/py/mantisai.svg)](https://badge.fury.io/py/mantisai)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-[![Documentation Status](https://readthedocs.org/projects/mantis/badge/?version=latest)](https://mantis.readthedocs.io/en/latest/?badge=latest)
+## Key Features
 
-The comprehensive documentation is available at [https://mantis.readthedocs.io](https://mantis.readthedocs.io).
+* **Audio Transcription**: Convert audio files to text
+* **Text Summarization**: Generate concise summaries of transcribed content
+* **Information Extraction**: Extract specific information from audio content
+* **YouTube Support**: Process audio directly from YouTube URLs
+* **Pydantic Validation**: Ensure robust data handling with Pydantic models
+* **Easy Integration**: Simple API that works with both local files and YouTube URLs
 
-## 🛠️ Features
+## Installation
 
-- **Easy Transcription**: Transcribe MP3 files or YouTube URLs with a single function call.
-- **Data Validation**: Ensures input and output data integrity using Pydantic.
-- **Integration with Gemini AI**: Leverages Gemini AI's powerful language models for accurate transcriptions, summaries, and extractions.
-- **YouTube Support**: Stream audio directly from YouTube URLs without downloading the entire file.
-- **Command-Line Interface (CLI)**: Interact with Mantis directly from the terminal.
-- **Comprehensive Testing**: Robust unit tests ensure reliability.
-- **Continuous Integration**: Automated testing and linting with GitHub Actions.
-- **Comprehensive Documentation**: Generated with Sphinx and hosted on Read the Docs.
-
-## 🚀 Installation
-
-To install Mantis, run the following command:
+Install Mantis with pip:
 
 ```bash
-pip install mantis
+pip install mantisai
 ```
 
-Alternatively, install it in editable mode for development purposes:
+## Quick Start
+
+Here's a simple example of how to use Mantis:
+
+```python
+import mantis
+import os
+
+# Configure your API key
+os.environ["GEMINI_API_KEY"] = "your-api-key"
+
+# Transcribe an audio file
+transcription = mantis.transcribe("sample.mp3")
+print(transcription.transcription)
+
+# Generate a summary
+summary = mantis.summarize("sample.mp3")
+print(summary.summary)
+
+# Extract specific information
+extraction = mantis.extract("sample.mp3", "Extract key points about technology mentioned")
+print(extraction.extraction)
+```
+
+## Working with YouTube
+
+Mantis can also process YouTube videos directly:
+
+```python
+# Transcribe from YouTube URL
+transcription = mantis.transcribe("https://www.youtube.com/watch?v=example")
+print(transcription.transcription)
+
+# Summarize YouTube content
+summary = mantis.summarize("https://www.youtube.com/watch?v=example")
+print(summary.summary)
+```
+
+## Features in Detail
+
+### Transcription
+
+```python
+import mantis
+
+# Transcribe local file
+result = mantis.transcribe("local_audio.mp3")
+print(result.transcription)
+
+# Transcribe YouTube video
+result = mantis.transcribe("https://www.youtube.com/watch?v=example")
+print(result.transcription)
+```
+
+### Summarization
+
+```python
+import mantis
+
+# Summarize local file
+result = mantis.summarize("local_audio.mp3")
+print(result.summary)
+
+# Summarize YouTube video
+result = mantis.summarize("https://www.youtube.com/watch?v=example")
+print(result.summary)
+```
+
+### Information Extraction
+
+```python
+import mantis
+
+# Extract information with a custom prompt
+result = mantis.extract("local_audio.mp3", "List all mentioned dates and events")
+print(result.extraction)
+```
+
+## Configuration
+
+Set your Gemini AI API key in your environment:
 
 ```bash
-pip install -e .
+export GEMINI_API_KEY="your-api-key"
 ```
 
-## 🧑‍💻 Usage
-
-### 🖥️ Command-Line Interface (CLI)
-
-After installation, you can use the `mantis` CLI to transcribe, summarize, and extract information from audio files or YouTube URLs.
-
-```bash
-mantis [command] [arguments]
-```
-
-#### **Available Commands:**
-
-- **transcribe**: Transcribe audio from a file or YouTube URL.
-- **summarize**: Summarize audio from a file or YouTube URL.
-- **extract**: Extract information from audio with a custom prompt.
-
-#### **Examples:**
-
-- **Transcribe a local MP3 file:**
-
-    ```bash
-    mantis transcribe path/to/your/audio.mp3
-    ```
-
-- **Transcribe a YouTube URL:**
-
-    ```bash
-    mantis transcribe https://www.youtube.com/watch?v=AKJfakEsgy0&ab_channel=MrBeast
-    ```
-
-- **Summarize a local MP3 file:**
-
-    ```bash
-    mantis summarize path/to/your/audio.mp3
-    ```
-
-- **Summarize a YouTube URL:**
-
-    ```bash
-    mantis summarize https://www.youtube.com/watch?v=AKJfakEsgy0&ab_channel=MrBeast
-    ```
-
-- **Extract information from a local MP3 file with a custom prompt:**
-
-    ```bash
-    mantis extract path/to/your/audio.mp3 --prompt "Extract key points from this audio."
-    ```
-
-- **Extract information from a YouTube URL with a custom prompt:**
-
-    ```bash
-    mantis extract https://www.youtube.com/watch?v=AKJfakEsgy0&ab_channel=MrBeast --prompt "Extract key points from this audio."
-    ```
-
-### 📝 Python API
-
-You can also use Mantis programmatically in your Python scripts:
+Or in your Python code:
 
 ```python
 import os
-from mantis import transcribe, summarize, extract
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
-def main():
-    try:
-        # Example usage for transcription using a local file path
-        transcription_result = transcribe("path/to/your/audio.mp3")
-        print("Transcription (Local File):", transcription_result.transcription)
-
-        # Example usage for transcription using a YouTube URL
-        youtube_url = "https://www.youtube.com/watch?v=AKJfakEsgy0&ab_channel=MrBeast"
-        transcription_youtube = transcribe(youtube_url)
-        print("\nTranscription (YouTube URL):", transcription_youtube.transcription)
-
-        # Example usage for summarization using a local file path
-        summary_result = summarize("path/to/your/audio.mp3")
-        print("\nSummary (Local File):", summary_result.summary)
-
-        # Example usage for summarization using a YouTube URL
-        summary_youtube = summarize(youtube_url)
-        print("\nSummary (YouTube URL):", summary_youtube.summary)
-
-        # Example usage for extraction using a local file path and a custom prompt
-        extraction_result = extract(
-            "path/to/your/audio.mp3",
-            "Extract key points from this audio."
-        )
-        print("\nExtraction (Local File):", extraction_result.extraction)
-
-        # Example usage for extraction using a YouTube URL and a custom prompt
-        extraction_youtube = extract(
-            youtube_url,
-            "Extract key points from this audio."
-        )
-        print("\nExtraction (YouTube URL):", extraction_youtube.extraction)
-    except Exception as error:
-        print(f"An error occurred: {error}")
-
-if __name__ == "__main__":
-    main()
+os.environ["GEMINI_API_KEY"] = "your-api-key"
 ```
 
-## 📦 Installation
+## Contributing
 
-To install Mantis, please refer to the [Installation](#installation) section above.
+We welcome contributions! Here's how you can help:
 
-## 🔐 Environment Variables
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run the tests: `python -m unittest discover tests`
+5. Submit a pull request
 
-Mantis requires certain environment variables to function correctly. Please refer to the `.env.example` file for the necessary configurations.
+## License
 
-1. **Create a `.env` File:**
-
-    ```bash
-    cp .env.example .env
-    ```
-
-2. **Fill in the Required Values:**
-
-    Open the `.env` file in your preferred text editor and replace the placeholder values with your actual credentials.
-
-    ```plaintext
-    GEMINI_API_KEY=your_gemini_api_key_here
-    ```
-
-**Note:** Ensure that your `.env` file is added to `.gitignore` to prevent accidental exposure of sensitive information.
-
-## 📄 License
-
-This project is licensed under the [Apache License 2.0](LICENSE).
-
-## 🙌 Contributing
-
-Contributions are welcome! Please refer to the [CONTRIBUTING](CONTRIBUTING.md) guide for more details.
-
-## 📜 Code of Conduct
-
-Please read our [Code of Conduct](CODE_OF_CONDUCT.md) to understand our expectations for participant behavior.
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
 

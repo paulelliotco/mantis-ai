@@ -1,13 +1,6 @@
 import unittest
-import importlib.util
-import os
 from unittest.mock import patch
-import sys
-
-spec = importlib.util.spec_from_file_location("mantis.extract", os.path.join("mantis", "extract.py"))
-extract_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(extract_module)
-sys.modules["mantis.extract"] = extract_module
+import mantis  # Global import to access mantis.extract
 
 
 class TestExtraction(unittest.TestCase):
@@ -28,8 +21,8 @@ class TestExtraction(unittest.TestCase):
                             "Response", (object,), {"text": "Extracted information from local file."}
                         )
 
-                        # Perform extraction using the module's function
-                        result = extract_module.extract("sample_audio.mp3", "Extract key points from this audio.")
+                        # Perform extraction using the global mantis function
+                        result = mantis.extract("sample_audio.mp3", "Extract key points from this audio.")
 
                         # Assertions
                         self.assertEqual(result.extraction, "Extracted information from local file.")
@@ -40,7 +33,7 @@ class TestExtraction(unittest.TestCase):
 
     def test_extract_invalid_input(self):
         with self.assertRaises(ValueError):
-            extract_module.extract("invalid_audio_file.xyz", "Extract key points.")
+            mantis.extract("invalid_audio_file.xyz", "Extract info")
 
 
 if __name__ == "__main__":

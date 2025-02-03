@@ -1,9 +1,8 @@
 import argparse
 import sys
-from mantis.transcription import transcribe
-from mantis.summarize import summarize
-from mantis.extract import extract
+import mantis
 from dotenv import load_dotenv
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,7 +32,7 @@ def main():
 
     if args.command == "transcribe":
         try:
-            result = transcribe(args.audio_source)
+            result = mantis.transcribe(args.audio_source)
             print("Transcription Output:")
             print(result.transcription)
         except Exception as e:
@@ -42,7 +41,7 @@ def main():
 
     elif args.command == "summarize":
         try:
-            result = summarize(args.audio_source)
+            result = mantis.summarize(args.audio_source)
             print("Summary Output:")
             print(result.summary)
         except Exception as e:
@@ -51,7 +50,7 @@ def main():
 
     elif args.command == "extract":
         try:
-            result = extract(args.audio_source, args.prompt)
+            result = mantis.extract(args.audio_source, args.prompt)
             print("Extraction Output:")
             print(result.extraction)
         except Exception as e:
