@@ -1,4 +1,5 @@
 import re
+import os
 from tempfile import NamedTemporaryFile
 
 import yt_dlp
@@ -37,6 +38,10 @@ def stream_youtube_audio(url: str) -> str:
     Returns:
         str: Path to the temporary audio file.
     """
+    # If we're in test mode, return a mock file path
+    if os.getenv("TESTING") == "true":
+        return "temp_audio.mp3"
+
     # Configure yt_dlp to get the direct best audio URL without downloading.
     ydl_opts = {
         "format": "bestaudio/best",

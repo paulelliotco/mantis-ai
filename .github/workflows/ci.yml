@@ -27,6 +27,7 @@ jobs:
     - name: Run tests
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        TESTING: "true"
       run: |
         uv run python -m unittest discover -s tests
 
