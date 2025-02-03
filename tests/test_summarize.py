@@ -6,8 +6,8 @@ from mantis.summarize import is_youtube_url
 class TestSummarization(unittest.TestCase):
     @patch('mantis.summarize.genai.upload_file')
     @patch('mantis.summarize.genai.GenerativeModel')
-    @patch('mantis.summarize.is_youtube_url')
-    @patch('mantis.summarize.stream_youtube_audio')
+    @patch('mantis.utils.stream_youtube_audio')
+    @patch('mantis.utils.is_youtube_url')
     def test_summarize_with_local_file(self, mock_stream, mock_is_url, mock_model, mock_upload):
         # Mock is_youtube_url to return False
         mock_is_url.return_value = False
@@ -31,8 +31,8 @@ class TestSummarization(unittest.TestCase):
 
     @patch('mantis.summarize.genai.upload_file')
     @patch('mantis.summarize.genai.GenerativeModel')
-    @patch('mantis.summarize.is_youtube_url')
-    @patch('mantis.summarize.stream_youtube_audio')
+    @patch('mantis.utils.stream_youtube_audio')
+    @patch('mantis.utils.is_youtube_url')
     def test_summarize_with_youtube_url(self, mock_stream, mock_is_url, mock_model, mock_upload):
         # Mock is_youtube_url to return True
         mock_is_url.return_value = True

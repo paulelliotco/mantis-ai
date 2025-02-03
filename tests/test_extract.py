@@ -6,8 +6,8 @@ from mantis.extract import is_youtube_url
 class TestExtraction(unittest.TestCase):
     @patch('mantis.extract.genai.upload_file')
     @patch('mantis.extract.genai.GenerativeModel')
-    @patch('mantis.extract.is_youtube_url')
-    @patch('mantis.extract.stream_youtube_audio')
+    @patch('mantis.utils.is_youtube_url')
+    @patch('mantis.utils.stream_youtube_audio')
     def test_extract_with_local_file(self, mock_stream, mock_is_url, mock_model, mock_upload):
         # Mock is_youtube_url to return False
         mock_is_url.return_value = False
@@ -31,8 +31,8 @@ class TestExtraction(unittest.TestCase):
 
     @patch('mantis.extract.genai.upload_file')
     @patch('mantis.extract.genai.GenerativeModel')
-    @patch('mantis.extract.is_youtube_url')
-    @patch('mantis.extract.stream_youtube_audio')
+    @patch('mantis.utils.is_youtube_url')
+    @patch('mantis.utils.stream_youtube_audio')
     def test_extract_with_youtube_url(self, mock_stream, mock_is_url, mock_model, mock_upload):
         # Mock is_youtube_url to return True
         mock_is_url.return_value = True

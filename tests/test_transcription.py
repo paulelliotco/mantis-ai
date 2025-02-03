@@ -6,8 +6,8 @@ from mantis.utils import is_youtube_url
 class TestTranscription(unittest.TestCase):
     @patch('mantis.transcription.genai.upload_file')
     @patch('mantis.transcription.genai.GenerativeModel')
-    @patch('mantis.transcription.is_youtube_url')
-    @patch('mantis.transcription.stream_youtube_audio')
+    @patch('mantis.utils.is_youtube_url')
+    @patch('mantis.utils.stream_youtube_audio')
     def test_transcribe_with_local_file(self, mock_stream, mock_is_url, mock_model, mock_upload):
         # Mock is_youtube_url to return False
         mock_is_url.return_value = False
@@ -30,8 +30,8 @@ class TestTranscription(unittest.TestCase):
 
     @patch('mantis.transcription.genai.upload_file')
     @patch('mantis.transcription.genai.GenerativeModel')
-    @patch('mantis.transcription.is_youtube_url')
-    @patch('mantis.transcription.stream_youtube_audio')
+    @patch('mantis.utils.is_youtube_url')
+    @patch('mantis.utils.stream_youtube_audio')
     def test_transcribe_with_youtube_url(self, mock_stream, mock_is_url, mock_model, mock_upload):
         # Mock is_youtube_url to return True
         mock_is_url.return_value = True

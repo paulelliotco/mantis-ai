@@ -22,7 +22,7 @@ jobs:
         python-version: '3.9'
 
     - name: Initialize uv environment
-      run: uv sync --all-extras
+      run: uv run pip install .
 
     - name: Run tests
       env:
