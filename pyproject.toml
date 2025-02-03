@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "mantis"
 version = "0.1.0"
 description = "A Python package for transcribing audio files, summarizing text, and extracting information using Gemini AI and Pydantic."
+requires-python = ">=3.9"
 authors = [
     { name = "Paul Elliot", email = "paul@paulelliot.com" }
 ]
