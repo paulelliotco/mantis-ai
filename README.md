@@ -10,6 +10,7 @@ Mantis is a Python package that makes it easy to transcribe audio files, generat
 - **Audio Transcription:** Convert audio files to text.
 - **Text Summarization:** Generate concise summaries of your audio content.
 - **Information Extraction:** Retrieve specific details from audio using custom prompts.
+- **Structured Data:** Extract information in typed, validated formats using Pydantic models.
 - **YouTube Support:** Automatically process YouTube URLs.
 - **Pydantic Validation:** Ensure robust input/output handling.
 

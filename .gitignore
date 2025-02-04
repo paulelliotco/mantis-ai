@@ -93,7 +93,7 @@ celerybeat-schedule
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
+# MkDocs documentation
 /site
 
 # mypy
@@ -104,9 +104,18 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Sphinx
+# Sphinx (can be removed)
 docs/_build/
 
 # misc
 .DS_Store
 Thumbs.db 
+
+# Test audio files
+tests/sample_audio/*.mp3
+tests/sample_audio/*.wav
+tests/sample_audio/*.m4a
+tests/sample_audio/*.ogg
+
+# But keep the README
+!tests/sample_audio/README.md

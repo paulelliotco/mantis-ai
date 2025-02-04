@@ -46,3 +46,8 @@ path = "mantis/__init__.py"
 
 [tool.black]
 line-length = 120
+
+[tool.pytest.ini_options]
+markers = [
+    "local_only: marks tests that should only run locally (not in CI)",
+]

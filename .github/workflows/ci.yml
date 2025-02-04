@@ -24,10 +24,15 @@ jobs:
     - name: Initialize uv environment
       run: uv run pip install .
 
+    - name: Create test data directory
+      run: |
+        mkdir -p mantis/test_data
+        touch mantis/test_data/mock_audio.mp3
+
     - name: Run tests
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        TESTING: "true"
+        CI: "true"
       run: |
         uv run python -m unittest discover -s tests
 

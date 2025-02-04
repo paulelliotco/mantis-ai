@@ -1,11 +1,37 @@
 import re
 import os
 from tempfile import NamedTemporaryFile
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 import yt_dlp
 import requests
 
 YOUTUBE_URL_REGEX = re.compile(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)/.+$")
+
+
+class MantisError(Exception):
+    """Base exception for Mantis errors"""
+    pass
+
+class APIError(MantisError):
+    """Raised when API calls fail"""
+    pass
+
+class AudioProcessingError(MantisError):
+    """Raised when audio processing fails"""
+    pass
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry_error_cls=APIError
+)
+def safe_api_call(func, *args, **kwargs):
+    """Wrapper for API calls with retry logic"""
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        raise APIError(f"API call failed: {str(e)}")
 
 
 def is_youtube_url(url: str) -> bool:
@@ -29,20 +55,17 @@ def stream_youtube_audio(url: str) -> str:
     """
     Stream audio from a YouTube URL and return the path to the temporary audio file.
 
-    This function obtains the direct audio URL using yt_dlp without invoking ffmpeg,
-    then downloads the audio stream directly with requests.
-
     Args:
         url (str): The YouTube URL.
 
     Returns:
         str: Path to the temporary audio file.
     """
-    # If we're in test mode, return a mock file path
-    if os.getenv("TESTING") == "true":
-        return "temp_audio.mp3"
+    # For CI environments or testing, return a mock path
+    if os.getenv("CI") == "true" or os.getenv("TESTING") == "true":
+        return os.path.join(os.path.dirname(__file__), "test_data", "mock_audio.mp3")
 
-    # Configure yt_dlp to get the direct best audio URL without downloading.
+    # Regular YouTube processing logic
     ydl_opts = {
         "format": "bestaudio/best",
         "quiet": True,

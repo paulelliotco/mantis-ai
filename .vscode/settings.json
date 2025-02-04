@@ -1,0 +1,4 @@
+{
+    "augment.nextEdit.enableGlobalBackgroundSuggestions": true,
+    "augment.nextEdit.showAllBackgroundSuggestionLineHighlights": true
+}

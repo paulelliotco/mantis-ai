@@ -3,5 +3,11 @@ __version__ = "0.1.2"
 from .transcription import transcribe
 from .summarize import summarize
 from .extract import extract
+from .structured import extract_structured
 
-__all__ = ["transcribe", "summarize", "extract", "__version__"]
+__all__ = [
+    'transcribe',
+    'summarize',
+    'extract',
+    'extract_structured'
+]

@@ -2,16 +2,35 @@ import argparse
 import sys
 import mantis
 from dotenv import load_dotenv
-
+import rich
+from rich.progress import Progress
+from rich.console import Console
+from rich.table import Table
 
 # Load environment variables from .env file
 load_dotenv()
 
+def show_progress(progress: ProcessingProgress):
+    console = Console()
+    with Progress() as progress:
+        task = progress.add_task(f"[cyan]{progress.stage}...", total=100)
+        progress.update(task, completed=progress.progress * 100)
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Mantis CLI: Transcribe, Summarize, and Extract information from audio files or YouTube URLs."
+        description="Mantis CLI: Process audio files with AI"
     )
+    
+    # Add batch processing support
+    parser.add_argument("--batch", action="store_true", help="Enable batch processing")
+    parser.add_argument("--workers", type=int, default=4, help="Number of worker threads")
+    
+    # Add caching options
+    parser.add_argument("--cache-dir", type=str, help="Custom cache directory")
+    parser.add_argument("--no-cache", action="store_true", help="Disable caching")
+    
+    # Add output format options
+    parser.add_argument("--format", choices=["text", "json", "table"], default="text")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
