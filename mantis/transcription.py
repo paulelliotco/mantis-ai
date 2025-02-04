@@ -14,5 +14,5 @@ def transcribe(audio_file: str) -> TranscriptionOutput:
         audio_file=audio_file,
         validate_input=lambda x: TranscriptionInput(audio_file=x),
         create_output=lambda x: TranscriptionOutput(transcription=x),
-        model_prompt="Transcribe the following audio."
+        model_prompt="Transcribe the following audio.",
     )

@@ -9,10 +9,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 def extract_structured(
-    audio_file: str,
-    model: Type[T],
-    description: Optional[str] = None,
-    options: Optional[ProcessingOptions] = None
+    audio_file: str, model: Type[T], description: Optional[str] = None, options: Optional[ProcessingOptions] = None
 ) -> T:
     """Extract structured information from audio using a user-defined Pydantic model."""
     temp_file_path: Optional[str] = None

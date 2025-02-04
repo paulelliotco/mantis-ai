@@ -13,5 +13,5 @@ def summarize(audio_file: str) -> SummarizeOutput:
         audio_file=audio_file,
         validate_input=lambda x: SummarizeInput(audio_file=x),
         create_output=lambda x: SummarizeOutput(summary=x),
-        model_prompt="Summarize the following audio."
+        model_prompt="Summarize the following audio.",
     )

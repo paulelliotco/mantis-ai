@@ -14,7 +14,7 @@ class TestTranscription(unittest.TestCase):
             os.path.join(self.sample_audio_dir, "sample_audio.mp3"),
             os.path.join(self.sample_audio_dir, "sample_audio.wav"),
             os.path.join(self.sample_audio_dir, "sample_audio.m4a"),
-            os.path.join(self.sample_audio_dir, "sample_audio.ogg")
+            os.path.join(self.sample_audio_dir, "sample_audio.ogg"),
         ]
         for audio_file in test_files:
             with self.subTest(audio_file=audio_file):
@@ -33,10 +33,7 @@ class TestTranscription(unittest.TestCase):
                     )
 
                     result = mantis.transcribe(audio_file)
-                    self.assertEqual(
-                        result.transcription,
-                        f"Transcribed text from {os.path.basename(audio_file)}."
-                    )
+                    self.assertEqual(result.transcription, f"Transcribed text from {os.path.basename(audio_file)}.")
                     mock_is_url.assert_called_once_with(audio_file)
                     mock_upload.assert_called_once_with(audio_file)
                     mock_model.assert_called_once_with("gemini-1.5-flash")

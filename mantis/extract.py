@@ -13,5 +13,5 @@ def extract(audio_file: str, prompt: str) -> ExtractOutput:
         audio_file=audio_file,
         validate_input=lambda x: ExtractInput(audio_file=x, prompt=prompt),
         create_output=lambda x: ExtractOutput(extraction=x),
-        model_prompt=prompt
+        model_prompt=prompt,
     )
