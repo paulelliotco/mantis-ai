@@ -29,4 +29,5 @@ jobs:
       env:
         HATCH_INDEX_USER: __token__
         HATCH_INDEX_AUTH: ${{ secrets.PYPI_API_TOKEN }}
-      run: hatch publish 
+        HATCH_INDEX_REPO: main
+      run: hatch publish --repo main
