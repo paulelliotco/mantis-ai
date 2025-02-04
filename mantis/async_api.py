@@ -1,19 +1,18 @@
-import asyncio
 from typing import Optional
-import google.generativeai as genai
-from .models import TranscriptionOutput, SummarizeOutput, ExtractOutput
+import asyncio
+from . import transcribe, summarize, extract
 
-async def transcribe_async(audio_file: str) -> TranscriptionOutput:
-    """Async version of transcribe function"""
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, transcribe, audio_file)
 
-async def summarize_async(audio_file: str) -> SummarizeOutput:
-    """Async version of summarize function"""
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, summarize, audio_file)
+async def transcribe_async(audio_file: str) -> Optional[str]:
+    """Asynchronously transcribe audio file."""
+    return await asyncio.to_thread(transcribe, audio_file)
 
-async def extract_async(audio_file: str, prompt: str) -> ExtractOutput:
-    """Async version of extract function"""
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, extract, audio_file, prompt)
+
+async def summarize_async(audio_file: str) -> Optional[str]:
+    """Asynchronously summarize audio file."""
+    return await asyncio.to_thread(summarize, audio_file)
+
+
+async def extract_async(audio_file: str, prompt: str) -> Optional[str]:
+    """Asynchronously extract information from audio file."""
+    return await asyncio.to_thread(extract, audio_file, prompt)

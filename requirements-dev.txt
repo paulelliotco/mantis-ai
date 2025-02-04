@@ -3,3 +3,4 @@ pytest-asyncio==0.25.2
 tenacity
 python-dotenv
 yt-dlp
+SpeechRecognition

@@ -1,18 +1,21 @@
 from typing import Optional, Callable
 from pydantic import BaseModel, Field, field_validator
 
-SUPPORTED_AUDIO_FORMATS = ('.mp3', '.wav', '.m4a', '.ogg')
+SUPPORTED_AUDIO_FORMATS = (".mp3", ".wav", ".m4a", ".ogg")
+
 
 class ProcessingProgress(BaseModel):
     stage: str
     progress: float
     message: Optional[str] = None
 
+
 class ProcessingOptions(BaseModel):
     progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
     chunk_size: int = Field(default=1024 * 1024, description="Chunk size for processing large files")
     max_retries: int = Field(default=3, description="Maximum number of retries for failed API calls")
     timeout: int = Field(default=300, description="Timeout in seconds")
+
 
 class TranscriptionInput(BaseModel):
     """

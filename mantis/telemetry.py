@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from typing import Dict, List
 import logging
 
+
 class PerformanceMonitor:
     def __init__(self):
         self.metrics: Dict[str, List[float]] = {}
