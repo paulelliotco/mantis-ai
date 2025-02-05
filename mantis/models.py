@@ -1,20 +1,7 @@
-from typing import Optional, Callable
+from typing import Optional, List, Any
 from pydantic import BaseModel, Field, field_validator
 
 SUPPORTED_AUDIO_FORMATS = (".mp3", ".wav", ".m4a", ".ogg")
-
-
-class ProcessingProgress(BaseModel):
-    stage: str
-    progress: float
-    message: Optional[str] = None
-
-
-class ProcessingOptions(BaseModel):
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
-    chunk_size: int = Field(default=1024 * 1024, description="Chunk size for processing large files")
-    max_retries: int = Field(default=3, description="Maximum number of retries for failed API calls")
-    timeout: int = Field(default=300, description="Timeout in seconds")
 
 
 class TranscriptionInput(BaseModel):
@@ -27,8 +14,8 @@ class TranscriptionInput(BaseModel):
     @field_validator("audio_file")
     @classmethod
     def validate_audio_file(cls, v):
-        if not (v.lower().endswith(SUPPORTED_AUDIO_FORMATS) or v.startswith("http")):
-            raise ValueError(f"audio_file must be a path to one of {SUPPORTED_AUDIO_FORMATS} file or a YouTube URL.")
+        if not any(v.endswith(fmt) for fmt in SUPPORTED_AUDIO_FORMATS) and not v.startswith("http"):
+            raise ValueError(f"Audio file must end with one of {SUPPORTED_AUDIO_FORMATS} or be a valid URL")
         return v
 
 

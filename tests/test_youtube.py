@@ -1,9 +1,10 @@
 # tests/test_youtube.py
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import os
 import mantis  # Global import
 
+YOUTUBE_URL = "https://www.youtube.com/watch?v=dummy"
 
 class TestYouTubeProcessing(unittest.TestCase):
     def setUp(self):
@@ -16,53 +17,31 @@ class TestYouTubeProcessing(unittest.TestCase):
         if "CI" in os.environ:
             del os.environ["CI"]
 
-    def test_transcribe_youtube_url(self):
-        with (
-            patch("mantis.utils.is_youtube_url") as mock_is_url,
-            patch("google.generativeai.upload_file") as mock_upload,
-            patch("google.generativeai.GenerativeModel") as mock_model,
-        ):
-            mock_is_url.return_value = True
-            mock_upload.return_value = "uploaded_file_id"
-            mock_instance = mock_model.return_value
-            mock_instance.generate_content.return_value = type(
-                "Response", (object,), {"text": "YouTube transcription output"}
-            )
+    @patch('mantis.transcription.process_audio_with_gemini')
+    def test_transcribe_youtube_url(self, mock_proc):
+        dummy_result = MagicMock()
+        dummy_result.transcription = "YouTube transcription output"
+        mock_proc.return_value = dummy_result
 
-            result = mantis.transcribe(self.youtube_url)
-            self.assertEqual(result.transcription, "YouTube transcription output")
+        result = mantis.transcribe(self.youtube_url)
+        self.assertEqual(result, "YouTube transcription output")
 
-    def test_summarize_youtube_url(self):
-        with (
-            patch("mantis.utils.is_youtube_url") as mock_is_url,
-            patch("google.generativeai.upload_file") as mock_upload,
-            patch("google.generativeai.GenerativeModel") as mock_model,
-        ):
-            mock_is_url.return_value = True
-            mock_upload.return_value = "uploaded_file_id"
-            mock_instance = mock_model.return_value
-            mock_instance.generate_content.return_value = type(
-                "Response", (object,), {"text": "YouTube summary output"}
-            )
+    @patch('mantis.summarize.process_audio_with_gemini')
+    def test_summarize_youtube_url(self, mock_proc):
+        dummy_result = MagicMock()
+        dummy_result.summary = "YouTube summary output"
+        mock_proc.return_value = dummy_result
 
-            result = mantis.summarize(self.youtube_url)
-            self.assertEqual(result.summary, "YouTube summary output")
+        result = mantis.summarize(self.youtube_url)
+        self.assertEqual(result, "YouTube summary output")
 
-    def test_extract_youtube_url(self):
-        with (
-            patch("mantis.utils.is_youtube_url") as mock_is_url,
-            patch("google.generativeai.upload_file") as mock_upload,
-            patch("google.generativeai.GenerativeModel") as mock_model,
-        ):
-            mock_is_url.return_value = True
-            mock_upload.return_value = "uploaded_file_id"
-            mock_instance = mock_model.return_value
-            mock_instance.generate_content.return_value = type(
-                "Response", (object,), {"text": "YouTube extraction output"}
-            )
+    @patch('mantis.extract.process_audio_with_gemini')
+    def test_extract_youtube_url(self, mock_proc):
+        # Return the extraction output as a string.
+        mock_proc.return_value = "YouTube extraction output"
 
-            result = mantis.extract(self.youtube_url, "Extract info")
-            self.assertEqual(result.extraction, "YouTube extraction output")
+        result = mantis.extract(self.youtube_url, "Extract info")
+        self.assertEqual(result, "YouTube extraction output")
 
 
 if __name__ == "__main__":

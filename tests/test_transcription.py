@@ -1,7 +1,7 @@
 import unittest
 import os
-from unittest.mock import patch
-import mantis
+from unittest.mock import patch, MagicMock
+from mantis import transcribe
 
 
 class TestTranscription(unittest.TestCase):
@@ -32,8 +32,8 @@ class TestTranscription(unittest.TestCase):
                         "Response", (object,), {"text": f"Transcribed text from {os.path.basename(audio_file)}."}
                     )
 
-                    result = mantis.transcribe(audio_file)
-                    self.assertEqual(result.transcription, f"Transcribed text from {os.path.basename(audio_file)}.")
+                    result = transcribe(audio_file)
+                    self.assertEqual(result, f"Transcribed text from {os.path.basename(audio_file)}.")
                     mock_is_url.assert_called_once_with(audio_file)
                     mock_upload.assert_called_once_with(audio_file)
                     mock_model.assert_called_once_with("gemini-1.5-flash")
@@ -42,7 +42,7 @@ class TestTranscription(unittest.TestCase):
     def test_transcribe_invalid_input(self):
         invalid_file = os.path.join(self.test_dir, "invalid_audio_file.xyz")
         with self.assertRaises(ValueError):
-            mantis.transcribe(invalid_file)
+            transcribe(invalid_file)
 
     def test_transcribe_m4a_file(self):
         """Test transcription specifically with M4A format"""
@@ -62,11 +62,22 @@ class TestTranscription(unittest.TestCase):
                 "Response", (object,), {"text": "Transcribed text from M4A file"}
             )
 
-            result = mantis.transcribe(m4a_file)
-            self.assertEqual(result.transcription, "Transcribed text from M4A file")
+            result = transcribe(m4a_file)
+            self.assertEqual(result, "Transcribed text from M4A file")  # Changed from result.transcription
             mock_upload.assert_called_once_with(m4a_file)
             mock_model.assert_called_once_with("gemini-1.5-flash")
             mock_instance.generate_content.assert_called_once()
+
+    @patch('mantis.transcription.process_audio_with_gemini')
+    def test_transcribe_returns_string(self, mock_process_audio):
+        # Simulate a dummy transcription output
+        dummy_result = MagicMock()
+        dummy_result.transcription = "dummy transcription text"
+        mock_process_audio.return_value = dummy_result
+
+        audio_file = "dummy.mp3"
+        result = transcribe(audio_file)
+        self.assertEqual(result, "dummy transcription text")
 
 
 if __name__ == "__main__":

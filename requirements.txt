@@ -3,3 +3,4 @@ google-generativeai
 requests
 python-dotenv
 yt_dlp
+grpcio==1.60.1  # Pin specific version to avoid warnings

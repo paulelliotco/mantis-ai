@@ -4,3 +4,4 @@ tenacity
 python-dotenv
 yt-dlp
 SpeechRecognition
+grpcio==1.60.1  # Pin specific version to avoid warnings

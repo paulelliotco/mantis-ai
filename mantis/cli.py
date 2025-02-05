@@ -50,8 +50,7 @@ def main():
     if args.command == "transcribe":
         try:
             result = mantis.transcribe(args.audio_source)
-            print("Transcription Output:")
-            print(result.transcription)
+            print(result)
         except Exception as e:
             print(f"Error during transcription: {e}", file=sys.stderr)
             sys.exit(1)
@@ -59,8 +58,7 @@ def main():
     elif args.command == "summarize":
         try:
             result = mantis.summarize(args.audio_source)
-            print("Summary Output:")
-            print(result.summary)
+            print(result)
         except Exception as e:
             print(f"Error during summarization: {e}", file=sys.stderr)
             sys.exit(1)
@@ -68,8 +66,7 @@ def main():
     elif args.command == "extract":
         try:
             result = mantis.extract(args.audio_source, args.prompt)
-            print("Extraction Output:")
-            print(result.extraction)
+            print(result)
         except Exception as e:
             print(f"Error during extraction: {e}", file=sys.stderr)
             sys.exit(1)

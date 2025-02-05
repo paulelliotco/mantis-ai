@@ -10,9 +10,16 @@ Mantis is a Python package that makes it easy to transcribe audio files, generat
 - **Audio Transcription:** Convert audio files to text
 - **Text Summarization:** Generate concise summaries of your audio content
 - **Information Extraction:** Retrieve specific details from audio using custom prompts
-- **Structured Data:** Extract information in typed, validated formats using Pydantic models
 - **YouTube Support:** Automatically process YouTube URLs
 - **Pydantic Validation:** Ensure robust input/output handling
+
+## Supported Formats
+
+- `.mp3` - MP3 audio files
+- `.wav` - WAV audio files
+- `.m4a` - M4A audio files
+- `.ogg` - OGG audio files
+- YouTube URLs
 
 ## Installation
 
@@ -39,31 +46,6 @@ print(mantis.summarize("path/to/local/audio.mp3"))
 print(mantis.extract("path/to/local/audio.mp3", "Extract key details"))
 ```
 
-### Structured Data Extraction
-
-Extract typed, validated data using Pydantic models:
-
-```python
-from pydantic import BaseModel, Field
-from typing import List
-
-class MeetingAnalysis(BaseModel):
-    title: str = Field(..., description="Title of the meeting")
-    attendees: List[str] = Field(..., description="List of meeting participants")
-    action_items: List[str] = Field(..., description="Action items discussed")
-    key_decisions: List[str] = Field(..., description="Key decisions made")
-    duration: float = Field(..., description="Meeting duration in minutes")
-
-# Extract structured data from audio
-meeting = mantis.extract_structured("meeting.mp3", MeetingAnalysis)
-
-print(f"Meeting: {meeting.title}")
-print(f"Duration: {meeting.duration} minutes")
-print("\nAction Items:")
-for item in meeting.action_items:
-    print(f"- {item}")
-```
-
 ### YouTube Support
 
 Process YouTube content with the same API:
@@ -71,18 +53,6 @@ Process YouTube content with the same API:
 ```python
 # Transcribe a YouTube video
 transcript = mantis.transcribe("https://www.youtube.com/watch?v=example")
-
-# Extract structured data from YouTube
-class VideoAnalysis(BaseModel):
-    title: str
-    main_points: List[str]
-    timestamps: dict[str, float]
-    sentiment: str
-
-analysis = mantis.extract_structured(
-    "https://youtube.com/watch?v=example",
-    VideoAnalysis
-)
 ```
 
 ## Usage Notes
@@ -107,5 +77,4 @@ For more details, see [CONTRIBUTING.md](CONTRIBUTING.md)
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
 
