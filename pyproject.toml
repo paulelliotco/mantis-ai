@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mantisai"
-version = "0.1.6"
+version = "0.1.0"
 description = "A Python package for transcribing audio files, summarizing text, and extracting information using Gemini AI and Pydantic."
 requires-python = ">=3.9"
 authors = [
@@ -24,7 +24,8 @@ dependencies = [
     "requests",
     "python-dotenv",
     "yt_dlp",
-    "tenacity>=8.0.0",  # Added tenacity as a main dependency
+    "tenacity>=8.0.0",
+    "grpcio==1.60.1",  # Pin specific version to avoid warnings
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,9 @@ dev = [
     "sphinx-autodoc-typehints",
     "SpeechRecognition",
 ]
+
+[project.scripts]
+mantis = "mantis.cli:main"
 
 [tool.hatch.build]
 # Hatch settings for building your packages (if needed)
