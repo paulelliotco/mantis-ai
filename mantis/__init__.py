@@ -1,4 +1,4 @@
-__version__ = "0.1.1"
+__version__ = "0.1.7"
 
 # Add logging configuration at the top
 import os
