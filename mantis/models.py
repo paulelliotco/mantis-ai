@@ -1,5 +1,6 @@
-from typing import Optional, List, Any, Literal, Union, Tuple
-from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, List, Any, Literal, Union, Tuple, Dict
+from pydantic import BaseModel as PydanticBaseModel, Field, field_validator, model_validator
+import json
 
 SUPPORTED_AUDIO_FORMATS = (".mp3", ".wav", ".m4a", ".ogg")
 
@@ -10,6 +11,23 @@ class ProcessingProgress:
     def __init__(self, stage: str, progress: float):
         self.stage = stage
         self.progress = progress
+
+
+class BaseModel(PydanticBaseModel):
+    """Base model with common configuration and methods for all Mantis models."""
+    
+    model_config = {
+        "extra": "forbid",
+        "frozen": True,
+    }
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary."""
+        return self.model_dump()
+    
+    def to_json(self) -> str:
+        """Convert model to JSON string."""
+        return json.dumps(self.to_dict(), indent=2)
 
 
 class MantisBaseModel(BaseModel):
@@ -47,6 +65,11 @@ class TranscriptionOutput(MantisBaseModel):
     duration_seconds: Optional[float] = Field(None, description="Duration of the audio in seconds if available.")
 
 
+class TranscriptionResult(BaseModel):
+    """Result model for transcription."""
+    text: str
+
+
 class SummarizeInput(MantisBaseModel):
     audio_file: str = Field(..., description="Path to the audio file or YouTube URL to be summarized.")
     model: str = Field("gemini-1.5-flash", description="The Gemini model to use for summarization.")
@@ -63,6 +86,11 @@ class SummarizeInput(MantisBaseModel):
 class SummarizeOutput(MantisBaseModel):
     summary: str = Field(..., description="The summarized text from the audio source.")
     word_count: Optional[int] = Field(None, description="Word count of the summary.")
+
+
+class SummaryResult(BaseModel):
+    """Result model for summarization."""
+    text: str
 
 
 class ExtractInput(MantisBaseModel):
@@ -89,3 +117,12 @@ class ExtractInput(MantisBaseModel):
 class ExtractOutput(MantisBaseModel):
     extraction: str = Field(..., description="The extracted information from the audio source.")
     structured_data: Optional[dict] = Field(None, description="Structured data if available and requested.")
+
+
+class ExtractionResult(BaseModel):
+    """Result model for extraction with structured output support."""
+    key_points: Optional[List[str]] = None
+    entities: Optional[List[str]] = None
+    summary: Optional[str] = None
+    raw_text: Optional[str] = None
+    additional_data: Dict[str, Any] = Field(default_factory=dict)
