@@ -119,3 +119,7 @@ tests/sample_audio/*.ogg
 
 # But keep the README
 !tests/sample_audio/README.md
+
+# PyPI configuration
+.pypirc
+~/.pypirc
