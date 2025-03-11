@@ -22,6 +22,13 @@ Mantis AI can be applied to a wide range of scenarios where audio processing is 
 - [Focus Group Processing](focus-groups.md): Analyze focus group recordings to extract valuable feedback and insights.
 - [Educational Content](education.md): Create study materials from lecture recordings and educational videos.
 
+### Platform Integrations
+
+- [Slack Integration](slack-integration.md): Automatically process audio files shared in Slack channels.
+- [Google Drive Integration](google-drive-integration.md): Process audio files stored in Google Drive and create searchable documents.
+- [Microsoft Teams Integration](microsoft-teams-integration.md): Automatically process Teams meeting recordings and distribute insights.
+- [Zoom Integration](zoom-integration.md): Process Zoom meeting recordings for transcription and analysis.
+
 ## Getting Started with Use Cases
 
 Each use case includes:
@@ -60,4 +67,14 @@ When processing multiple files:
 
 - Use asynchronous processing when possible
 - Implement error handling to continue processing even if some files fail
-- Consider batching files for more efficient processing 
+- Consider batching files for more efficient processing
+
+### Integration Best Practices
+
+When integrating Mantis AI with other platforms:
+
+- **Authentication**: Use secure methods for storing and accessing API keys
+- **Error Handling**: Implement robust error handling for API failures
+- **Rate Limiting**: Respect API rate limits for both Mantis AI and integrated platforms
+- **Asynchronous Processing**: Use asynchronous processing for better user experience
+- **Feedback Loops**: Provide status updates during processing 
