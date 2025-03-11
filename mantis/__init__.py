@@ -8,7 +8,7 @@ logging.basicConfig(
 )
 
 # Package metadata
-__version__ = "0.1.17"  # Updated with fixes for YouTube caching issues
+__version__ = "0.1.18"  # Updated with author email and CI workflow fixes
 __author__ = "Paul Elliot"
 __email__ = "paul@paulelliot.co"
 __description__ = "Audio processing with large language models"
