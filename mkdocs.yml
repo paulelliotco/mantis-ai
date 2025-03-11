@@ -1,0 +1,59 @@
+site_name: Mantis AI Documentation
+site_description: Documentation for the Mantis AI audio processing library
+site_author: Paul Elliot
+site_url: https://github.com/paulelliotco/mantis-ai
+
+repo_name: paulelliotco/mantis-ai
+repo_url: https://github.com/paulelliotco/mantis-ai
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    primary: teal
+    accent: deep orange
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.expand
+    - navigation.indexes
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed
+  - pymdownx.tasklist
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          selection:
+            docstring_style: google
+          rendering:
+            show_source: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: installation.md
+    - Quick Start: quickstart.md
+  - Concepts: concepts.md
+  - API Reference: api-reference.md
+  - Use Cases:
+    - Overview: use-cases/index.md
+    - Meeting Transcription: use-cases/meetings.md
+  - Contributing: ../CONTRIBUTING.md
+  - License: ../LICENSE 

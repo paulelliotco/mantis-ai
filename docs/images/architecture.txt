@@ -1,0 +1,44 @@
+                                 Mantis AI Architecture
+                                 =====================
+
+┌───────────────────┐     ┌───────────────────┐     ┌───────────────────┐
+│                   │     │                   │     │                   │
+│   Audio Source    │────▶│   Input Handler   │────▶│  Audio Processor  │
+│                   │     │                   │     │                   │
+└───────────────────┘     └───────────────────┘     └─────────┬─────────┘
+                                                              │
+                                                              ▼
+┌───────────────────┐     ┌───────────────────┐     ┌───────────────────┐
+│                   │     │                   │     │                   │
+│   Result Output   │◀────│  Result Formatter │◀────│    Gemini API     │
+│                   │     │                   │     │                   │
+└───────────────────┘     └───────────────────┘     └───────────────────┘
+
+
+Input Types:                    Core Functions:               Output Types:
+- Local Audio Files             - transcribe()                - Transcription Text
+- YouTube URLs                  - summarize()                 - Summary Text
+                               - extract()                   - Extraction Results
+
+
+                         Data Flow and Processing
+                         =======================
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                         │
+│  1. Audio Source Validation and Preparation                             │
+│     - Validate file path or YouTube URL                                 │
+│     - Download YouTube audio if needed                                  │
+│     - Prepare audio for processing                                      │
+│                                                                         │
+│  2. Audio Processing with Gemini AI                                     │
+│     - Create appropriate prompt based on function                       │
+│     - Send audio and prompt to Gemini API                               │
+│     - Process API response                                              │
+│                                                                         │
+│  3. Result Formatting and Return                                        │
+│     - Format response based on function                                 │
+│     - Return string or structured object based on parameters            │
+│     - Clean up any temporary files                                      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘ 
