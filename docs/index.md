@@ -4,6 +4,8 @@
 
 Mantis AI is a Python library that makes it easy to transcribe audio, generate summaries, and extract specific information using large language models. Whether you're working with local audio files or YouTube content, Mantis provides a simple, consistent API to unlock the value in your audio data.
 
+> Developed by [Paul Elliot](mailto:paul@paulelliot.co)
+
 ## Why Mantis?
 
 - **Solve Real Problems**: Process hours of audio content in minutes

@@ -5,6 +5,8 @@ Mantis is a Python package that makes it easy to transcribe audio files, generat
 [![PyPI version](https://badge.fury.io/py/mantisai.svg)](https://badge.fury.io/py/mantisai)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
+> Developed by [Paul Elliot](mailto:paul@paulelliot.co)
+
 ## Key Features
 
 - **Audio Transcription:** Convert audio files to text with clean output

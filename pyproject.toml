@@ -8,7 +8,7 @@ version = "0.1.17"
 description = "A Python package for transcribing audio files, summarizing text, and extracting information using Gemini AI and Pydantic."
 requires-python = ">=3.9,<4.0"
 authors = [
-    { name = "Paul Elliot", email = "paul@paulelliot.com" }
+    { name = "Paul Elliot", email = "paul@paulelliot.co" }
 ]
 readme = "README.md"
 license = { text = "Apache 2.0" }

@@ -2,6 +2,8 @@
 
 This directory contains comprehensive documentation for the Mantis AI library.
 
+> Developed by [Paul Elliot](mailto:paul@paulelliot.co)
+
 ## Documentation Structure
 
 - [**index.md**](index.md): Main documentation page with an overview of Mantis AI
@@ -45,4 +47,8 @@ We welcome contributions to improve the documentation! Here's how you can help:
 3. Create new use case examples
 4. Improve diagrams and visual aids
 
-Please submit a pull request with your changes. 
+Please submit a pull request with your changes.
+
+---
+
+For questions or support, contact Paul Elliot at [paul@paulelliot.co](mailto:paul@paulelliot.co) 

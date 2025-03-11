@@ -2,6 +2,8 @@
 
 Getting started with Mantis AI is straightforward. This guide will walk you through the installation process and help you set up your environment.
 
+> Developed by [Paul Elliot](mailto:paul@paulelliot.co)
+
 ## Prerequisites
 
 Before installing Mantis AI, ensure you have:
