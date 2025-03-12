@@ -102,6 +102,41 @@ mantis.enable_debug_logging()
 mantis.enable_warning_logging()
 ```
 
+## YouTube Download Issues
+
+When working with YouTube URLs, you may occasionally encounter HTTP 403 Forbidden errors:
+
+```
+ERROR: unable to download video data: HTTP Error 403: Forbidden
+```
+
+This happens because YouTube implements anti-scraping measures that can temporarily block automated downloads. If you encounter these errors:
+
+1. **Retry the request** - YouTube's restrictions are often temporary and may succeed on subsequent attempts
+2. **Add delay between attempts** - Implement your own retry logic with increasing delays
+3. **Try different videos** - Some videos may have stricter access controls than others
+4. **Consider YouTube API** - For production applications, consider using YouTube's official API
+
+Mantis uses the `yt_dlp` library which implements various workarounds, but YouTube's protective measures are constantly evolving. For critical applications, implement additional error handling around YouTube downloads.
+
+```python
+import mantis
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+# Example of custom retry logic for YouTube downloads
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=60))
+def transcribe_with_retry(url):
+    return mantis.transcribe(url)
+
+# Use the retry wrapper
+try:
+    transcript = transcribe_with_retry("https://www.youtube.com/watch?v=example")
+    print(transcript)
+except Exception as e:
+    print(f"Failed after multiple attempts: {e}")
+```
+
 ## Recent Improvements (v0.1.17)
 
 - **Enhanced YouTube Processing:** Fixed caching issues with YouTube downloads
