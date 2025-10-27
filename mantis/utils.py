@@ -1,19 +1,44 @@
+import hashlib
+import logging
+import mimetypes
 import os
 import tempfile
-import logging
-from typing import Callable, TypeVar, Any, Dict, Optional, Union, Generic, cast
+import threading
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 from urllib.parse import urlparse
+
+from google import genai
+from google.genai import types
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from yt_dlp import YoutubeDL
-import google.generativeai as genai
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
 from .models import ProcessingProgress
 
 # Set up logging
 logger = logging.getLogger("mantis")
 
-T = TypeVar('T')
+T = TypeVar("T")
 InputValidator = Callable[[str], Any]
 OutputCreator = Callable[[str], T]
+
+
+class MissingAPIKeyError(Exception):
+    """Raised when a Google API key is not configured."""
+
+
+@dataclass(frozen=True)
+class UploadedFile:
+    """Cached metadata for a file uploaded to Google AI."""
+
+    uri: str
+    mime_type: str
+    size_bytes: int
+
+
+_CLIENT_LOCK = threading.Lock()
+_CLIENT: Optional[genai.Client] = None
+_UPLOAD_CACHE: Dict[Tuple[str, float], UploadedFile] = {}
 
 class MantisError(Exception):
     """Base exception class for Mantis errors."""
@@ -34,6 +59,139 @@ class ModelInferenceError(MantisError):
 class ValidationError(MantisError):
     """Exception raised when there's a validation error."""
     pass
+
+
+def _get_api_key() -> str:
+    """Return the configured Google API key or raise."""
+
+    for env_key in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GENAI_API_KEY"):
+        value = os.getenv(env_key)
+        if value:
+            return value
+    raise MissingAPIKeyError(
+        "A Google API key is required. Set GOOGLE_API_KEY or GEMINI_API_KEY in your environment."
+    )
+
+
+def get_genai_client() -> genai.Client:
+    """Lazily create and cache a Google GenAI client."""
+
+    global _CLIENT
+    if _CLIENT is not None:
+        return _CLIENT
+
+    with _CLIENT_LOCK:
+        if _CLIENT is not None:
+            return _CLIENT
+
+        api_key = _get_api_key()
+
+        http_options: Optional[types.HttpOptions] = None
+        api_endpoint = os.getenv("GOOGLE_API_ENDPOINT")
+        api_region = os.getenv("GOOGLE_API_REGION") or os.getenv("VERTEX_LOCATION")
+        if api_endpoint or api_region:
+            http_options = types.HttpOptions(api_endpoint=api_endpoint, api_region=api_region)
+
+        client_options: Dict[str, Any] = {"api_key": api_key}
+        if http_options:
+            client_options["http_options"] = http_options
+
+        _CLIENT = genai.Client(**client_options)
+        return _CLIENT
+
+
+def reset_genai_client_cache() -> None:
+    """Reset cached client and uploads (used in tests)."""
+
+    global _CLIENT
+    with _CLIENT_LOCK:
+        _CLIENT = None
+    _UPLOAD_CACHE.clear()
+
+
+def _detect_mime_type(path: str) -> str:
+    mime, _ = mimetypes.guess_type(path)
+    if mime:
+        return mime
+    extension = os.path.splitext(path)[1].lower()
+    if extension == ".wav":
+        return "audio/wav"
+    if extension in {".m4a", ".aac"}:
+        return "audio/mp4"
+    if extension in {".flac"}:
+        return "audio/flac"
+    return "audio/mpeg"
+
+
+def _cache_key(path: str) -> Tuple[str, float]:
+    stat = os.stat(path)
+    return (os.path.abspath(path), stat.st_mtime)
+
+
+def _upload_audio_file(
+    client: genai.Client,
+    path: str,
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+) -> UploadedFile:
+    cache_key = _cache_key(path)
+    cached = _UPLOAD_CACHE.get(cache_key)
+    if cached:
+        logger.debug("Reusing cached upload for %s", path)
+        return cached
+
+    mime_type = _detect_mime_type(path)
+    display_name = os.path.basename(path)
+
+    if progress_callback:
+        progress_callback(ProcessingProgress("Uploading audio", 0.6))
+
+    with open(path, "rb") as file_obj:
+        upload = client.files.upload(
+            file=file_obj,
+            config={"mime_type": mime_type, "display_name": display_name},
+        )
+
+    uploaded = UploadedFile(uri=upload.uri, mime_type=upload.mime_type or mime_type, size_bytes=upload.size_bytes)
+    _UPLOAD_CACHE[cache_key] = uploaded
+    return uploaded
+
+
+def _build_contents(prompt: str, uploaded_file: UploadedFile) -> list:
+    return [
+        {
+            "role": "user",
+            "parts": [
+                {"text": prompt},
+                {"file_data": {"file_uri": uploaded_file.uri, "mime_type": uploaded_file.mime_type}},
+            ],
+        }
+    ]
+
+
+def _extract_output_text(response: Any) -> str:
+    if response is None:
+        raise ModelInferenceError("Received an empty response from Google GenAI")
+
+    if hasattr(response, "output_text") and response.output_text:
+        return response.output_text
+
+    if hasattr(response, "text") and response.text:
+        return response.text
+
+    if hasattr(response, "candidates"):
+        candidates = getattr(response, "candidates") or []
+        for candidate in candidates:
+            content = getattr(candidate, "content", None)
+            if not content:
+                continue
+            parts = getattr(content, "parts", None)
+            if not parts:
+                continue
+            text_parts = [getattr(part, "text", None) for part in parts if getattr(part, "text", None)]
+            if text_parts:
+                return "\n".join(text_parts)
+
+    raise ModelInferenceError("Unable to extract text from Google GenAI response")
 
 def is_youtube_url(url: str) -> bool:
     """
@@ -140,13 +298,30 @@ def stream_youtube_audio(url: str, progress_callback: Optional[Callable[[Process
         logger.error(f"Error downloading YouTube audio from {url}: {e}")
         raise YouTubeDownloadError(f"Failed to download audio from YouTube: {str(e)}")
 
+def _default_safety_settings() -> Optional[List[types.SafetySetting]]:
+    try:
+        return [
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUAL_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+        ]
+    except AttributeError:
+        # Older versions of the SDK may not expose harm categories; fall back gracefully.
+        return None
+
+
 def process_audio_with_gemini(
     audio_file: str,
     validate_input: InputValidator,
     create_output: OutputCreator[T],
     model_prompt: str,
-    model_name: str = "gemini-1.5-flash",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    model_name: str = "gemini-1.5-flash-latest",
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    *,
+    response_schema: Optional[types.Schema] = None,
+    output_mime_type: Optional[str] = None,
+    client: Optional[genai.Client] = None,
 ) -> T:
     """
     Process audio with Gemini AI using the provided input/output handlers.
@@ -206,9 +381,9 @@ def process_audio_with_gemini(
             
         # Validate input
         try:
-            validated_input = validate_input(file_to_process)
+            _validated_input = validate_input(file_to_process)
             # Assert validated input is not None
-            assert validated_input is not None, "Validated input cannot be None"
+            assert _validated_input is not None, "Validated input cannot be None"
         except Exception as e:
             logger.error(f"Validation error: {e}")
             raise ValidationError(f"Input validation failed: {str(e)}")
@@ -217,42 +392,46 @@ def process_audio_with_gemini(
         if progress_callback:
             progress_callback(ProcessingProgress("Processing with AI model", 0.5))
         
-        # Process with Gemini using the newer API
+        # Process with Gemini using the Responses API
         try:
-            model = genai.GenerativeModel(model_name)
-            
-            # Assert model is not None
-            assert model is not None, "Failed to create Gemini model"
-            
-            # Open the file in binary mode
-            with open(file_to_process, "rb") as f:
-                file_content = f.read()
-            
-            # Assert file content is not empty
-            assert file_content, "Audio file content cannot be empty"
-            
-            # Create a file part for the model
-            file_part = {"mime_type": "audio/mpeg", "data": file_content}
-            
-            # Generate content with the file and prompt
-            response = model.generate_content([model_prompt, file_part])
-            
-            # Assert response is not None
-            assert response is not None, "Model response cannot be None"
-            assert hasattr(response, 'text'), "Model response must have a text attribute"
-            assert response.text, "Model response text cannot be empty"
-            
-            # Report completion
+            if client is None:
+                client = get_genai_client()
+
+            uploaded = _upload_audio_file(client, file_to_process, progress_callback)
+            contents = _build_contents(model_prompt, uploaded)
+
             if progress_callback:
-                progress_callback(ProcessingProgress("Processing complete", 1.0))
-            
-            # Create and return output
-            output = create_output(response.text)
-            
-            # Assert output is not None
+                progress_callback(ProcessingProgress("Generating response", 0.75))
+
+            request_params = {
+                "model": model_name,
+                "contents": contents,
+            }
+
+            safety_settings = _default_safety_settings()
+            if safety_settings:
+                request_params["safety_settings"] = safety_settings
+            if response_schema is not None:
+                request_params["response_schema"] = response_schema
+            if output_mime_type:
+                request_params["output_mime_type"] = output_mime_type
+
+            response = client.responses.generate(**request_params)
+
+            if progress_callback:
+                progress_callback(ProcessingProgress("Processing complete", 0.95))
+
+            text = _extract_output_text(response)
+            output = create_output(text)
+
+            if progress_callback:
+                progress_callback(ProcessingProgress("Done", 1.0))
+
             assert output is not None, "Created output cannot be None"
-            
             return output
+        except MissingAPIKeyError as e:
+            logger.error("API key missing: %s", e)
+            raise ModelInferenceError(str(e))
         except Exception as e:
             logger.error(f"Model inference error: {e}")
             raise ModelInferenceError(f"Error processing with Gemini AI: {str(e)}")
