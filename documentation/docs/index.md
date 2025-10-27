@@ -1,35 +1,59 @@
 # Mantis AI Documentation
 
-**Transform audio into actionable insights with just a few lines of code.**
+**Transform audio into actionable insights with the latest Gemini 1.5 models.**
 
-Mantis AI is a Python library that makes it easy to transcribe audio, generate summaries, and extract specific information using large language models. Whether you're working with local audio files or YouTube content, Mantis provides a simple, consistent API to unlock the value in your audio data.
+Mantis AI is a Python library that wraps Google's refreshed Gemini SDK, giving you
+an end-to-end pipeline for transcription, summarisation, and structured
+information extraction. The package now exposes explicit configuration hooks for
+Google AI Studio (API keys) and Vertex AI projects, plus streaming, response
+schema, and safety-setting controls that keep pace with Google's platform.
 
 > Developed by [Paul Elliot](mailto:paul@paulelliot.co)
 
 ## Why Mantis?
 
-- **Solve Real Problems**: Process hours of audio content in minutes
-- **Simple API**: Just 3 core functions to learn
-- **Flexible Input**: Works with local audio files and YouTube URLs
-- **Clean Results**: Get polished transcriptions without speech artifacts
-- **Custom Extraction**: Ask specific questions about your audio content
+- **Latest Models**: Defaults to `gemini-1.5-flash-latest` with a single flag to
+  switch to `gemini-1.5-pro-latest`.
+- **Simple API**: Three top-level functions with optional streaming callbacks.
+- **Flexible Input**: Process local audio or YouTube URLs transparently.
+- **Structured Output**: Response schemas turn Gemini replies into actionable JSON.
+- **Policy-Aware**: Pass through Gemini safety settings without leaving Python.
 
 ## Quick Example
 
 ```python
+import os
 import mantis
 
-# Transcribe an audio file
-transcript = mantis.transcribe("interview.mp3")
-print(transcript)
+mantis.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-# Generate a concise summary
-summary = mantis.summarize("interview.mp3")
-print(summary)
+transcript = mantis.transcribe(
+    "interview.mp3",
+    clean_output=True,
+    stream=True,
+    stream_callback=lambda chunk: print(chunk, end=""),
+)
 
-# Extract specific information
-key_points = mantis.extract("interview.mp3", "What are the main arguments presented?")
-print(key_points)
+summary = mantis.summarize(
+    "interview.mp3",
+    model="gemini-1.5-pro-latest",
+    response_schema={
+        "type": "object",
+        "properties": {
+            "overview": {"type": "string"},
+            "next_steps": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["overview"],
+    },
+    response_mime_type="application/json",
+)
+
+actions = mantis.extract(
+    "interview.mp3",
+    "List the main decisions and owners",
+    structured_output=True,
+    safety_settings={"HARASSMENT": "BLOCK_MEDIUM_AND_ABOVE"},
+)
 ```
 
 ## Getting Started
@@ -38,6 +62,7 @@ print(key_points)
 - [Quick Start Guide](quickstart.md): Learn the basics with practical examples
 - [Core Concepts](concepts.md): Understand how Mantis works
 - [API Reference](api-reference.md): Detailed documentation of all functions and parameters
+- [Migration Guide](migration-guide.md): Move from legacy Google Generative AI flows to the latest SDK
 
 ## Common Use Cases
 

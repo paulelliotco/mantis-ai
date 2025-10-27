@@ -8,11 +8,15 @@ This document provides detailed information about all functions, classes, and pa
 
 ```python
 mantis.transcribe(
-    audio_file: str, 
+    audio_file: str,
     raw_output: bool = False,
     clean_output: bool = False,
-    model: str = "gemini-1.5-flash",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    model: str = "gemini-1.5-flash-latest",
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    *,
+    stream: bool = False,
+    stream_callback: Optional[Callable[[str], None]] = None,
+    safety_settings: Optional[Any] = None,
 ) -> Union[str, TranscriptionOutput]
 ```
 
@@ -23,8 +27,11 @@ Transcribes audio from a file or YouTube URL.
 - **audio_file** (`str`): Path to the audio file or YouTube URL.
 - **raw_output** (`bool`, optional): If `True`, returns the full `TranscriptionOutput` object. If `False` (default), returns just the transcription string.
 - **clean_output** (`bool`, optional): If `True`, removes disfluencies, repetitions, and other speech artifacts. If `False` (default), provides the verbatim transcription.
-- **model** (`str`, optional): The Gemini model to use for transcription. Default is "gemini-1.5-flash".
+- **model** (`str`, optional): The Gemini model to use for transcription. Default is `"gemini-1.5-flash-latest"`.
 - **progress_callback** (`Callable[[ProcessingProgress], None]`, optional): Optional callback function to report progress.
+- **stream** (`bool`, optional): Stream partial responses as they arrive. Default is `False`.
+- **stream_callback** (`Callable[[str], None]`, optional): Callback invoked with each streaming text chunk.
+- **safety_settings** (`dict`, optional): Gemini safety configuration passed directly to the API.
 
 #### Returns
 
@@ -48,6 +55,13 @@ transcript = mantis.transcribe("interview.mp3")
 # With clean output
 clean_transcript = mantis.transcribe("interview.mp3", clean_output=True)
 
+# Stream partial responses
+mantis.transcribe(
+    "interview.mp3",
+    stream=True,
+    stream_callback=lambda chunk: print(chunk, end=""),
+)
+
 # Get the full output object
 result = mantis.transcribe("interview.mp3", raw_output=True)
 print(f"Transcription: {result.transcription}")
@@ -58,12 +72,18 @@ print(f"Confidence: {result.confidence}")
 
 ```python
 mantis.summarize(
-    audio_file: str, 
+    audio_file: str,
     raw_output: bool = False,
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-1.5-flash-latest",
     max_length: Optional[int] = None,
     language: str = "English",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    *,
+    stream: bool = False,
+    stream_callback: Optional[Callable[[str], None]] = None,
+    safety_settings: Optional[Any] = None,
+    response_schema: Optional[Any] = None,
+    response_mime_type: Optional[str] = None,
 ) -> Union[str, SummarizeOutput]
 ```
 
@@ -73,10 +93,15 @@ Summarizes audio from a file or YouTube URL.
 
 - **audio_file** (`str`): Path to the audio file or YouTube URL.
 - **raw_output** (`bool`, optional): If `True`, returns the full `SummarizeOutput` object. If `False` (default), returns just the summary string.
-- **model** (`str`, optional): The Gemini model to use for summarization. Default is "gemini-1.5-flash".
+- **model** (`str`, optional): The Gemini model to use for summarization. Default is `"gemini-1.5-flash-latest"`.
 - **max_length** (`int`, optional): Optional maximum length for the summary in characters.
 - **language** (`str`, optional): Language for the summary output. Default is "English".
 - **progress_callback** (`Callable[[ProcessingProgress], None]`, optional): Optional callback function to report progress.
+- **stream** (`bool`, optional): Stream partial responses as they arrive. Default is `False`.
+- **stream_callback** (`Callable[[str], None]`, optional): Callback invoked with each streaming text chunk.
+- **safety_settings** (`dict`, optional): Gemini safety configuration passed directly to the API.
+- **response_schema** (`dict`, optional): JSON schema describing the desired structured response.
+- **response_mime_type** (`str`, optional): MIME type for the structured response (for example `"application/json"`).
 
 #### Returns
 
@@ -103,6 +128,18 @@ short_summary = mantis.summarize("lecture.mp3", max_length=200)
 # In a different language
 spanish_summary = mantis.summarize("lecture.mp3", language="Spanish")
 
+# Structured JSON summary
+json_summary = mantis.summarize(
+    "lecture.mp3",
+    model="gemini-1.5-pro-latest",
+    response_schema={
+        "type": "object",
+        "properties": {"overview": {"type": "string"}},
+        "required": ["overview"],
+    },
+    response_mime_type="application/json",
+)
+
 # Get the full output object
 result = mantis.summarize("lecture.mp3", raw_output=True)
 print(f"Summary: {result.summary}")
@@ -113,12 +150,18 @@ print(f"Word count: {result.word_count}")
 
 ```python
 mantis.extract(
-    audio_file: str, 
-    prompt: str, 
+    audio_file: str,
+    prompt: str,
     raw_output: bool = False,
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-1.5-flash-latest",
     structured_output: bool = False,
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    *,
+    stream: bool = False,
+    stream_callback: Optional[Callable[[str], None]] = None,
+    safety_settings: Optional[Any] = None,
+    response_schema: Optional[Any] = None,
+    response_mime_type: Optional[str] = None,
 ) -> Union[str, ExtractOutput]
 ```
 
@@ -129,9 +172,14 @@ Extracts information from audio based on a custom prompt.
 - **audio_file** (`str`): Path to the audio file or YouTube URL.
 - **prompt** (`str`): Custom prompt specifying what information to extract.
 - **raw_output** (`bool`, optional): If `True`, returns the full `ExtractOutput` object. If `False` (default), returns just the extraction string.
-- **model** (`str`, optional): The Gemini model to use for extraction. Default is "gemini-1.5-flash".
+- **model** (`str`, optional): The Gemini model to use for extraction. Default is `"gemini-1.5-flash-latest"`.
 - **structured_output** (`bool`, optional): Whether to attempt to return structured data. Default is `False`.
 - **progress_callback** (`Callable[[ProcessingProgress], None]`, optional): Optional callback function to report progress.
+- **stream** (`bool`, optional): Stream partial responses as they arrive. Default is `False`.
+- **stream_callback** (`Callable[[str], None]`, optional): Callback invoked with each streaming text chunk.
+- **safety_settings** (`dict`, optional): Gemini safety configuration passed directly to the API.
+- **response_schema** (`dict`, optional): JSON schema describing the desired structured response.
+- **response_mime_type** (`str`, optional): MIME type for the structured response (for example `"application/json"`).
 
 #### Returns
 
@@ -154,9 +202,17 @@ key_points = mantis.extract("meeting.mp3", "What are the main action items?")
 
 # Request structured output
 structured_data = mantis.extract(
-    "interview.mp3", 
-    "Extract the speaker's name, age, and occupation", 
+    "interview.mp3",
+    "Extract the speaker's name, age, and occupation",
     structured_output=True
+)
+
+# Stream partial responses
+mantis.extract(
+    "meeting.mp3",
+    "Summarise the debate topics",
+    stream=True,
+    stream_callback=lambda chunk: print(chunk, end=""),
 )
 
 # Get the full output object

@@ -25,6 +25,26 @@ load_dotenv()
 # Create console for rich output
 console = Console()
 
+
+class StreamPrinter:
+    """Accumulate and optionally echo streaming chunks."""
+
+    def __init__(self, echo: bool = True) -> None:
+        self._echo = echo
+        self._chunks: List[str] = []
+
+    def __call__(self, chunk: str) -> None:
+        if not chunk:
+            return
+
+        self._chunks.append(chunk)
+        if self._echo:
+            console.print(chunk, end="")
+
+    @property
+    def text(self) -> str:
+        return "".join(self._chunks)
+
 def show_progress(progress_data: ProcessingProgress) -> None:
     """Show progress using rich progress bar."""
     # Assert input validation
@@ -142,6 +162,19 @@ def format_extraction(result) -> None:
     ))
 
 
+def add_common_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--model",
+        default="gemini-1.5-flash-latest",
+        help="Gemini model identifier (for example gemini-1.5-pro-latest)",
+    )
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="Stream responses as they are generated",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Mantis CLI: Process audio files with AI")
 
@@ -150,15 +183,24 @@ def main():
     # Transcribe Command
     transcribe_parser = subparsers.add_parser("transcribe", help="Transcribe audio from a file or YouTube URL")
     transcribe_parser.add_argument("audio_source", type=str, help="Path to audio file or YouTube URL")
+    add_common_options(transcribe_parser)
 
     # Summarize Command
     summarize_parser = subparsers.add_parser("summarize", help="Summarize audio from a file or YouTube URL")
     summarize_parser.add_argument("audio_source", type=str, help="Path to audio file or YouTube URL")
+    add_common_options(summarize_parser)
 
     # Extract Command
     extract_parser = subparsers.add_parser("extract", help="Extract information from audio")
     extract_parser.add_argument("audio_source", type=str, help="Path to audio file or YouTube URL")
     extract_parser.add_argument("prompt", type=str, help="Custom prompt for extraction")
+    extract_parser.add_argument(
+        "--response-mime-type",
+        dest="response_mime_type",
+        default=None,
+        help="Optional MIME type for structured responses (e.g. application/json)",
+    )
+    add_common_options(extract_parser)
 
     args = parser.parse_args()
     
@@ -183,33 +225,51 @@ def main():
     progress_callback = show_progress
 
     try:
+        stream_printer: Optional[StreamPrinter] = StreamPrinter() if args.stream else None
+
         if args.command == "transcribe":
             result = mantis.transcribe(
                 args.audio_source,
                 clean_output=True,  # Always use clean output for better readability
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                model=args.model,
+                stream=args.stream,
+                stream_callback=stream_printer,
             )
             # Assert result is not None
             assert result is not None, "Transcription result cannot be None"
+            if args.stream:
+                console.print()
             format_transcription(result)
 
         elif args.command == "summarize":
             result = mantis.summarize(
                 args.audio_source,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                model=args.model,
+                stream=args.stream,
+                stream_callback=stream_printer,
             )
             # Assert result is not None
             assert result is not None, "Summary result cannot be None"
+            if args.stream:
+                console.print()
             format_summary(result)
 
         elif args.command == "extract":
             result = mantis.extract(
                 args.audio_source,
                 args.prompt,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                model=args.model,
+                stream=args.stream,
+                stream_callback=stream_printer,
+                response_mime_type=args.response_mime_type,
             )
             # Assert result is not None
             assert result is not None, "Extraction result cannot be None"
+            if args.stream:
+                console.print()
             format_extraction(result)
 
         else:

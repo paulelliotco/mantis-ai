@@ -65,10 +65,27 @@ from .models import (
     ExtractionResult, ProcessingProgress
 )
 from .utils import (
-    MantisError, AudioProcessingError, 
+    MantisError, AudioProcessingError,
     YouTubeDownloadError, ModelInferenceError,
-    ValidationError
+    ValidationError, configure_genai
 )
+
+
+def configure(
+    *,
+    api_key: str | None = None,
+    vertex_project: str | None = None,
+    vertex_location: str | None = None,
+    transport: str | None = None,
+) -> None:
+    """Configure the Gemini client for either Google AI Studio or Vertex AI usage."""
+
+    configure_genai(
+        api_key=api_key,
+        vertex_project=vertex_project,
+        vertex_location=vertex_location,
+        transport=transport,
+    )
 
 # Define public API
 __all__ = [
@@ -90,5 +107,6 @@ __all__ = [
     "ValidationError",
     "enable_verbose_logging",
     "enable_debug_logging",
-    "enable_warning_logging"
+    "enable_warning_logging",
+    "configure",
 ]

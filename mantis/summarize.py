@@ -10,7 +10,13 @@ def summarize(
     model: str = "gemini-1.5-flash-latest",
     max_length: Optional[int] = None,
     language: str = "English",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    *,
+    stream: bool = False,
+    stream_callback: Optional[Callable[[str], None]] = None,
+    safety_settings: Optional[Any] = None,
+    response_schema: Optional[Any] = None,
+    response_mime_type: Optional[str] = None,
 ) -> Union[str, SummarizeOutput]:
     """
     Summarize an audio source using Gemini AI.
@@ -23,6 +29,11 @@ def summarize(
         max_length: Optional maximum length for the summary in characters
         language: Language for the summary output (default: English)
         progress_callback: Optional callback function to report progress
+        stream: If True, stream partial responses as they arrive
+        stream_callback: Optional callable to receive streaming text chunks
+        safety_settings: Optional Gemini safety settings configuration
+        response_schema: Optional schema definition for JSON-formatted responses
+        response_mime_type: Optional MIME type for the structured response (for example, "application/json")
         
     Returns:
         Either a string containing the summary or a SummarizeOutput object
@@ -66,7 +77,12 @@ def summarize(
         ),
         model_prompt=prompt,
         model_name=model,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        stream=stream,
+        stream_callback=stream_callback,
+        safety_settings=safety_settings,
+        response_schema=response_schema,
+        response_mime_type=response_mime_type,
     )
     
     # Assert result is not None

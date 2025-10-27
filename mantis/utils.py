@@ -353,8 +353,10 @@ def process_audio_with_gemini(
     assert isinstance(model_name, str), "Model name must be a string"
     assert progress_callback is None or callable(progress_callback), "progress_callback must be None or a callable function"
     
+    ensure_genai_configured()
+
     temp_file_path = None
-    output = None
+    output: Optional[T] = None
     
     try:
         # Report initial progress

@@ -21,6 +21,9 @@ def transcribe(
                      If False (default), provides the verbatim transcription.
         model: The Gemini model to use for transcription
         progress_callback: Optional callback function to report progress
+        stream: If True, stream partial responses as they arrive
+        stream_callback: Optional callable to receive streaming text chunks
+        safety_settings: Optional Gemini safety settings configuration
         
     Returns:
         Either a string containing the transcription or a TranscriptionOutput object
@@ -58,7 +61,10 @@ def transcribe(
         create_output=lambda x: TranscriptionOutput(transcription=x),
         model_prompt=model_prompt,
         model_name=model,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        stream=stream,
+        stream_callback=stream_callback,
+        safety_settings=safety_settings,
     )
     
     # Assert result is not None

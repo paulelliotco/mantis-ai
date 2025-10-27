@@ -55,6 +55,11 @@ def extract(
         model: The Gemini model to use for extraction
         structured_output: Whether to attempt to return structured data
         progress_callback: Optional callback function to report progress
+        stream: If True, stream partial responses as they arrive
+        stream_callback: Optional callable to receive streaming text chunks
+        safety_settings: Optional Gemini safety settings configuration
+        response_schema: Optional schema definition for structured JSON responses
+        response_mime_type: Optional MIME type for the structured response (for example, "application/json")
         
     Returns:
         Either a string containing the extracted information or an ExtractOutput object

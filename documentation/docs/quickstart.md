@@ -1,183 +1,125 @@
 # Quick Start Guide
 
-This guide will help you get up and running with Mantis AI quickly. We'll cover the three core functions—transcribe, summarize, and extract—with practical examples that solve real problems.
+This guide gets you up and running with the refreshed Mantis workflow powered by
+Google's Gemini 1.5 models. You'll learn how to configure credentials, call the
+Python helpers with streaming, and make the most of the CLI.
 
-## Basic Usage
+## Before You Begin
 
-First, import the Mantis library:
+1. Install the package: `pip install mantisai`
+2. Obtain either a Gemini API key (Google AI Studio) or set up a Vertex AI
+   project with service account credentials.
+3. Configure the SDK once at application start:
 
 ```python
 import mantis
+
+# Option 1: Google AI Studio
+mantis.configure(api_key="YOUR_GEMINI_API_KEY")
+
+# Option 2: Vertex AI
+mantis.configure(vertex_project="my-gcp-project", vertex_location="us-central1")
 ```
 
-## Transcribing Audio
+If you prefer environment variables, set `GEMINI_API_KEY`, `VERTEX_PROJECT`, and
+`VERTEX_LOCATION`. The helper will read them automatically.
 
-Transcription converts audio to text, removing speech artifacts like "um" and "uh" by default.
-
-### Transcribe a Local Audio File
+## Transcribing Audio with Streaming Output
 
 ```python
-# Transcribe a local audio file
-transcript = mantis.transcribe("interview.mp3")
-print(transcript)
+import mantis
+
+mantis.configure(api_key="YOUR_GEMINI_API_KEY")
+
+stream_buffer = []
+
+def on_chunk(text: str) -> None:
+    stream_buffer.append(text)
+    print(text, end="")
+
+transcript = mantis.transcribe(
+    "interview.mp3",
+    clean_output=True,
+    stream=True,
+    stream_callback=on_chunk,
+)
+
+print("\nFull transcript:\n", transcript)
 ```
 
-### Transcribe a YouTube Video
+The `stream` flag triggers Gemini's streaming mode while the callback echoes
+chunks as they arrive. Mantis still returns the full transcript when the call
+completes.
+
+## Generating Structured Summaries
 
 ```python
-# Transcribe a YouTube video
-youtube_transcript = mantis.transcribe("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
-print(youtube_transcript)
-```
+summary = mantis.summarize(
+    "interview.mp3",
+    model="gemini-1.5-pro-latest",
+    response_schema={
+        "type": "object",
+        "properties": {
+            "overview": {"type": "string"},
+            "action_items": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["overview"],
+    },
+    response_mime_type="application/json",
+)
 
-## Generating Summaries
-
-Summarization creates a concise overview of the audio content.
-
-### Summarize a Local Audio File
-
-```python
-# Summarize a local audio file
-summary = mantis.summarize("lecture.mp3")
 print(summary)
 ```
 
-### Summarize a YouTube Video
+Passing a JSON schema plus `response_mime_type` instructs Gemini to emit valid
+machine-readable responses. This is ideal for downstream automation and storage.
+
+## Extracting Insights with Safety Settings
 
 ```python
-# Summarize a YouTube video
-youtube_summary = mantis.summarize("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
-print(youtube_summary)
-```
-
-## Extracting Information
-
-Extraction allows you to ask specific questions about the audio content.
-
-### Extract Information from a Local Audio File
-
-```python
-# Extract key points from a meeting recording
-key_points = mantis.extract(
-    "meeting.mp3", 
-    "What are the main action items and who is responsible for each?"
-)
-print(key_points)
-```
-
-### Extract Information from a YouTube Video
-
-```python
-# Extract specific information from a YouTube video
-analysis = mantis.extract(
+decisions = mantis.extract(
     "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    "What are the main themes of this song and how do they relate to popular culture?"
+    "List the major decisions and who owns them",
+    structured_output=True,
+    safety_settings={
+        "HATE": "BLOCK_MEDIUM_AND_ABOVE",
+        "HARASSMENT": "BLOCK_MEDIUM_AND_ABOVE",
+    },
 )
-print(analysis)
+
+print(decisions)
 ```
 
-## Using the Command Line Interface
+Safety settings mirror the latest Gemini safety specification, letting you align
+responses with organisational policy.
 
-Mantis AI also provides a command-line interface for quick tasks.
-
-### Transcribe
+## Command Line Interface
 
 ```bash
-python -m mantis.cli transcribe "interview.mp3"
+# Stream a transcript in real time
+python -m mantis.cli transcribe interview.mp3 --stream
+
+# Upgrade to gemini-1.5-pro-latest for richer summaries
+python -m mantis.cli summarize interview.mp3 --model gemini-1.5-pro-latest
+
+# Request JSON from the extractor
+python -m mantis.cli extract interview.mp3 "List action items" --response-mime-type application/json
 ```
 
-### Summarize
+The CLI shares the same streaming implementation and accepts the latest model
+identifiers (`gemini-1.5-flash-latest`, `gemini-1.5-pro-latest`).
 
-```bash
-python -m mantis.cli summarize "lecture.mp3"
-```
+## Upload Patterns and Large Files
 
-### Extract
+Mantis handles file uploads for you—local paths are read directly and streamed to
+Gemini, while YouTube URLs are downloaded to a temporary location. For very large
+recordings, consider chunking audio and calling `mantis.transcribe` sequentially
+or switching to the pro model, which unlocks longer context windows.
 
-```bash
-python -m mantis.cli extract "meeting.mp3" "What are the key decisions made in this meeting?"
-```
+## What Next?
 
-## Real-World Examples
-
-### Example 1: Processing Meeting Recordings
-
-```python
-import mantis
-import os
-
-# Process all meeting recordings in a directory
-meeting_dir = "meetings/"
-for filename in os.listdir(meeting_dir):
-    if filename.endswith(".mp3"):
-        file_path = os.path.join(meeting_dir, filename)
-        
-        # Get the meeting date from the filename (assuming format: meeting_YYYY-MM-DD.mp3)
-        meeting_date = filename.replace("meeting_", "").replace(".mp3", "")
-        
-        print(f"Processing meeting from {meeting_date}...")
-        
-        # Transcribe the meeting
-        transcript = mantis.transcribe(file_path)
-        
-        # Summarize the meeting
-        summary = mantis.summarize(file_path)
-        
-        # Extract action items
-        action_items = mantis.extract(file_path, "List all action items mentioned in this meeting")
-        
-        # Save results
-        with open(f"meeting_notes_{meeting_date}.txt", "w") as f:
-            f.write(f"# Meeting Notes: {meeting_date}\n\n")
-            f.write("## Summary\n\n")
-            f.write(summary)
-            f.write("\n\n## Action Items\n\n")
-            f.write(action_items)
-            f.write("\n\n## Full Transcript\n\n")
-            f.write(transcript)
-        
-        print(f"Saved meeting notes to meeting_notes_{meeting_date}.txt")
-```
-
-### Example 2: Analyzing Educational Content
-
-```python
-import mantis
-
-# Process an educational lecture
-lecture_url = "https://www.youtube.com/watch?v=example_lecture"
-
-# Generate a comprehensive study guide
-transcript = mantis.transcribe(lecture_url)
-summary = mantis.summarize(lecture_url)
-key_concepts = mantis.extract(lecture_url, "What are the key concepts explained in this lecture?")
-examples = mantis.extract(lecture_url, "List all examples mentioned and explain their significance")
-questions = mantis.extract(lecture_url, "Generate 5 quiz questions with answers based on this lecture")
-
-# Create a study guide
-study_guide = f"""
-# Lecture Study Guide
-
-## Summary
-{summary}
-
-## Key Concepts
-{key_concepts}
-
-## Examples
-{examples}
-
-## Practice Questions
-{questions}
-"""
-
-print(study_guide)
-```
-
-## Next Steps
-
-Now that you're familiar with the basics, check out:
-
-- [Core Concepts](concepts.md) to understand how Mantis works
-- [API Reference](api-reference.md) for detailed documentation
-- [Use Cases](use-cases/index.md) for more examples 
+- [Installation](installation.md) – Review environment setup in detail.
+- [Core Concepts](concepts.md) – Explore how Mantis orchestrates downloads,
+  validation, and Gemini requests.
+- [Migration Guide](migration-guide.md) – Move from the legacy `google-generativeai`
+  flows to the new SDK usage.
