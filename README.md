@@ -28,8 +28,13 @@ and Vertex AI enterprise deployments.
 
 ## Supported Formats
 
-- `.mp3`, `.wav`, `.m4a`, `.ogg`
-- YouTube URLs (downloaded transparently with `yt_dlp`)
+- `.mp3` - MP3 audio files
+- `.wav` - WAV audio files
+- `.m4a` - M4A audio files
+- `.ogg` - OGG audio files
+- `.flac` - FLAC lossless audio files
+- `.aac` - AAC audio files
+- YouTube URLs
 
 ## Installation
 
@@ -37,7 +42,21 @@ and Vertex AI enterprise deployments.
 pip install mantisai
 ```
 
-## Configure Access (AI Studio or Vertex AI)
+### Configure Google AI access
+
+The refreshed SDK relies on the [google-genai](https://pypi.org/project/google-genai/) client and the new Responses API. Provide
+credentials via environment variables before running any code:
+
+```bash
+export GOOGLE_API_KEY="your-google-ai-studio-or-vertex-api-key"
+# Optional: pin a region or endpoint if you are using Vertex AI
+export GOOGLE_API_REGION="us-central1"
+# or export GOOGLE_API_ENDPOINT="https://your-custom-endpoint"
+```
+
+`GOOGLE_API_KEY` is preferred, but `GEMINI_API_KEY` and `GENAI_API_KEY` remain supported for backwards compatibility.
+
+## Quick Start
 
 Mantis now exposes a `configure` helper so you can initialize the new
 `google.generativeai` SDK exactly once and share it across the package.
@@ -146,21 +165,38 @@ python -m mantis.cli extract path/to/audio.mp3 "List action items" --response-mi
 
 ## Usage Notes
 
-- The default model is `gemini-1.5-flash-latest`. Switch to
-  `gemini-1.5-pro-latest` for long-form reasoning or premium quality.
-- Provide either a local audio path or a YouTube URL—the API normalizes both
-  sources and performs temporary caching for downloads.
-- Logging remains disabled by default. Opt-in with:
+- **Unified Interface:** Whether you're passing a `.mp3` file or a YouTube URL, the functions work the same way
+- **Clean Transcriptions:** By default, transcriptions remove disfluencies and speech artifacts
+- **Custom Prompts:** For extraction, you can provide custom prompts to guide the information retrieval
+- **API Key:** Set `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) in your environment before running the SDK
+- **Default Models:** Transcription and summarization use `gemini-1.5-flash-latest`; extraction defaults to `gemini-1.5-pro-latest`
+- **Silent Operation:** Logging is disabled by default for clean output. Enable it only when needed for debugging.
 
 ```python
 import mantis
+
+# Enable informational logging when needed
+mantis.enable_verbose_logging()
 
 mantis.enable_verbose_logging()
 # or
 mantis.enable_debug_logging()
 ```
 
-## Troubleshooting
+### Structured extraction and response schemas
+
+When you call `mantis.extract(..., structured_output=True)` the SDK now instructs Gemini to follow a structured JSON schema and
+validates the response before returning it to you. This yields reliable summaries, key points, entities, and action items that
+can be consumed programmatically. If the model ever produces malformed JSON, Mantis gracefully falls back to the raw text so
+your application keeps running.
+
+### File uploads and caching
+
+The new pipeline mirrors Google's recommendations by uploading audio via `client.files.upload`, detecting MIME types
+automatically, and caching uploads for repeated prompts. Progress callbacks now include distinct stages for YouTube downloads,
+file uploads, and model execution to keep end users informed.
+
+## YouTube Download Issues
 
 ### Gemini Quotas and Rate Limits
 
@@ -191,12 +227,14 @@ ERROR: unable to download video data: HTTP Error 403: Forbidden
 Retry the request, add exponential backoff, or switch to a different video. For
 production workloads consider the official YouTube Data API.
 
-## Recent Improvements (v0.1.18)
+## Recent Improvements (v0.2.0)
 
-- Default model bump to `gemini-1.5-flash-latest` with CLI overrides.
-- Streaming support exposed across the Python API and CLI.
-- New `mantis.configure()` helper for AI Studio and Vertex AI setups.
-- Safety settings and response schema passthrough for advanced workflows.
+- **Responses API upgrade:** Migrated from the deprecated `google-generativeai` SDK to the latest `google-genai` client and
+  `client.responses.generate` workflow.
+- **Modern audio ingestion:** Follow Google's upload guidance with MIME-type detection, resumable uploads, and caching for
+  repeat requests.
+- **Reliable structured extraction:** Response schemas and JSON validation power predictable audio intelligence outputs.
+- **Expanded format support:** Added FLAC and AAC detection alongside improved YouTube progress reporting.
 
 ## Contributing
 

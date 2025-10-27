@@ -1,6 +1,7 @@
-from typing import Union, Optional, Callable, Any
-from .models import SummarizeInput, SummarizeOutput, ProcessingProgress
-from .utils import process_audio_with_gemini, MantisError
+from typing import Callable, Optional, Union
+
+from .models import ProcessingProgress, SummarizeInput, SummarizeOutput
+from .utils import MantisError, process_audio_with_gemini
 
 
 def summarize(
@@ -52,13 +53,9 @@ def summarize(
     
     # Use the specific prompt format provided by the user
     prompt = (
-        f"You are a highly skilled AI trained in language comprehension and summarization. "
-        f"I would like you to read the text delimited by triple quotes and summarize it into a concise abstract paragraph. "
-        f"Aim to retain the most important points, providing a coherent and readable summary that could help a person understand "
-        f"the main points of the discussion without needing to read the entire text. "
-        f"Please avoid unnecessary details or tangential points. Only give me the output and nothing else. "
-        f"Do not wrap responses in quotes. Respond in the {language} language. "
-        f"\"\"\" {{transcription}} \"\"\""
+        "You are an expert meeting assistant. Listen to the attached audio, generate a concise summary that covers the primary "
+        "goals, decisions, action items, and any risks. Focus on factual content. Respond only with the summary text in the "
+        f"{language} language."
     )
     
     # Assert prompt is not empty
@@ -66,9 +63,9 @@ def summarize(
     
     if max_length:
         # Insert the max length requirement before the final instruction
-        prompt = prompt.replace(
-            "Only give me the output and nothing else.",
-            f"Keep the summary under {max_length} characters. Only give me the output and nothing else."
+        prompt = (
+            prompt
+            + f" Limit the summary to {max_length} characters while preserving the most critical information."
         )
     
     result = process_audio_with_gemini(

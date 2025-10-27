@@ -1,17 +1,14 @@
-from typing import Union, Optional, Callable, Any
-from .models import TranscriptionInput, TranscriptionOutput, ProcessingProgress
-from .utils import process_audio_with_gemini, MantisError
+from typing import Callable, Optional, Union
+
+from .models import ProcessingProgress, TranscriptionInput, TranscriptionOutput
+from .utils import MantisError, process_audio_with_gemini
 
 def transcribe(
     audio_file: str, 
     raw_output: bool = False,
     clean_output: bool = False,
     model: str = "gemini-1.5-flash-latest",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
-    *,
-    stream: bool = False,
-    stream_callback: Optional[Callable[[str], None]] = None,
-    safety_settings: Optional[Any] = None,
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
 ) -> Union[str, TranscriptionOutput]:
     """
     Transcribe an audio source using Gemini AI.
@@ -45,12 +42,15 @@ def transcribe(
     # Create the appropriate prompt based on clean_output setting
     if clean_output:
         model_prompt = (
-            "Transcribe the following audio. Remove all disfluencies (um, uh, etc.), "
-            "repetitions, false starts, and other speech artifacts. Provide a clean, "
-            "readable transcription while preserving the original meaning and content."
+            "You are a world-class transcription engine. Listen to the audio and return a polished transcript "
+            "without disfluencies (um, uh, etc.), filler words, or repeated fragments. Preserve speaker meaning and "
+            "punctuation where possible."
         )
     else:
-        model_prompt = "Transcribe the following audio."
+        model_prompt = (
+            "You are a meticulous transcription engine. Listen to the audio and provide a verbatim transcript with "
+            "accurate punctuation and speaker cues when available."
+        )
     
     # Assert prompt is not empty
     assert model_prompt, "Model prompt cannot be empty"
