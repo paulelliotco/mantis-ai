@@ -281,14 +281,18 @@ Model for the output data after extraction.
 class ProcessingProgress(MantisBaseModel):
     stage: str
     progress: float
+    phase: Optional[Literal["initializing", "download", "upload", "processing", "response", "complete", "cleanup"]]
+    detail: Optional[str]
 ```
 
-Model for reporting processing progress.
+Model for reporting processing progress across the major Gemini UX phases.
 
 #### Attributes
 
 - **stage** (`str`): The current processing stage (e.g., "Downloading YouTube audio", "Processing with AI model").
 - **progress** (`float`): The progress value between 0.0 and 1.0.
+- **phase** (`Literal`): The high-level UX phase (initializing, download, upload, processing, response, complete, or cleanup).
+- **detail** (`str`, optional): Additional detail that can be displayed to users (for example byte counts during upload).
 
 ## Exception Classes
 
