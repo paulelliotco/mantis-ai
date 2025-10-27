@@ -254,11 +254,53 @@ def stream_youtube_audio(url: str, progress_callback: Optional[Callable[[Process
         except Exception as e:
             logger.warning(f"Failed to remove existing temporary file {temp_file}: {e}")
     
+    if progress_callback:
+        progress_callback(
+            ProcessingProgress(
+                stage="Preparing YouTube download",
+                progress=_DOWNLOAD_PROGRESS_START,
+                phase="download",
+                detail=url,
+            )
+        )
+
     def progress_hook(d: Dict[str, Any]) -> None:
-        if progress_callback and 'downloaded_bytes' in d and 'total_bytes' in d and d['total_bytes'] > 0:
-            progress = d['downloaded_bytes'] / d['total_bytes']
-            progress_callback(ProcessingProgress("Downloading YouTube audio", progress))
-    
+        if not progress_callback:
+            return
+
+        status = d.get('status')
+        total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+        downloaded_bytes = d.get('downloaded_bytes') or 0
+
+        fraction = 0.0
+        if total_bytes:
+            fraction = min(downloaded_bytes / total_bytes, 1.0)
+        elif downloaded_bytes:
+            fraction = 0.0 if status != 'finished' else 1.0
+
+        if status == 'finished':
+            fraction = 1.0
+            if total_bytes == 0:
+                total_bytes = downloaded_bytes
+
+        progress_value = _DOWNLOAD_PROGRESS_START + fraction * (_DOWNLOAD_PROGRESS_END - _DOWNLOAD_PROGRESS_START)
+
+        if total_bytes:
+            detail = f"{downloaded_bytes:,}/{total_bytes:,} bytes"
+        else:
+            detail = f"{downloaded_bytes:,} bytes"
+
+        stage = "Downloading YouTube audio" if status != 'finished' else "Finished downloading YouTube audio"
+
+        progress_callback(
+            ProcessingProgress(
+                stage=stage,
+                progress=min(progress_value, _DOWNLOAD_PROGRESS_END),
+                phase="download",
+                detail=detail,
+            )
+        )
+
     ydl_opts = {
         'format': 'bestaudio[ext=mp3]/bestaudio/best',
         'outtmpl': temp_file,
@@ -267,7 +309,6 @@ def stream_youtube_audio(url: str, progress_callback: Optional[Callable[[Process
         'no_warnings': True,  # Suppress warnings
         'progress_hooks': [progress_hook] if progress_callback else [],
         'logger': None,  # Disable logger output
-        'progress_callback': progress_callback,  # Pass the progress callback directly
         # Additional options to bypass YouTube's anti-bot measures
         'nocheckcertificate': True,
         'ignoreerrors': False,
@@ -354,32 +395,45 @@ def process_audio_with_gemini(
     assert isinstance(model_name, str), "Model name must be a string"
     assert progress_callback is None or callable(progress_callback), "progress_callback must be None or a callable function"
     
-    temp_file_path = None
-    output = None
-    
+    temp_file_path: Optional[str] = None
+    output: Optional[T] = None
+
     try:
-        # Report initial progress
         if progress_callback:
-            progress_callback(ProcessingProgress("Starting processing", 0.0))
-        
+            progress_callback(
+                ProcessingProgress(
+                    stage="Starting processing",
+                    progress=_INITIAL_PROGRESS,
+                    phase="initializing",
+                    detail=audio_file,
+                )
+            )
+
         # Handle YouTube URLs
         if is_youtube_url(audio_file):
             logger.info(f"Processing YouTube URL: {audio_file}")
-            if progress_callback:
-                progress_callback(ProcessingProgress("Downloading YouTube audio", 0.0))
-            
             temp_file_path = stream_youtube_audio(audio_file, progress_callback)
             file_to_process = temp_file_path
-            
+
             # Assert the downloaded file exists
             assert os.path.exists(file_to_process), f"Downloaded YouTube audio file does not exist: {file_to_process}"
         else:
             logger.info(f"Processing local audio file: {audio_file}")
             file_to_process = audio_file
-            
+
             # Assert the local file exists
             assert os.path.exists(file_to_process), f"Local audio file does not exist: {file_to_process}"
-            
+
+            if progress_callback:
+                progress_callback(
+                    ProcessingProgress(
+                        stage="Loaded local audio file",
+                        progress=_DOWNLOAD_PROGRESS_END,
+                        phase="initializing",
+                        detail=file_to_process,
+                    )
+                )
+
         # Validate input
         try:
             _validated_input = validate_input(file_to_process)
@@ -448,7 +502,6 @@ def process_audio_with_gemini(
         if temp_file_path and os.path.exists(temp_file_path):
             try:
                 # Make sure the file is not in use
-                import time
                 for attempt in range(3):
                     try:
                         os.remove(temp_file_path)

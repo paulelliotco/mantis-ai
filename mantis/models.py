@@ -5,14 +5,6 @@ import json
 SUPPORTED_AUDIO_FORMATS = (".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac")
 
 
-class ProcessingProgress:
-    """Model for tracking processing progress."""
-    
-    def __init__(self, stage: str, progress: float):
-        self.stage = stage
-        self.progress = progress
-
-
 class BaseModel(PydanticBaseModel):
     """Base model with common configuration and methods for all Mantis models."""
     
@@ -32,11 +24,34 @@ class BaseModel(PydanticBaseModel):
 
 class MantisBaseModel(BaseModel):
     """Base model with common configuration for all Mantis models."""
-    
+
     model_config = {
         "extra": "forbid",
         "frozen": True,
     }
+
+
+class ProcessingProgress(MantisBaseModel):
+    """Model for tracking processing progress."""
+
+    stage: str = Field(..., description="Human readable description of the current step.")
+    progress: float = Field(..., ge=0.0, le=1.0, description="Progress value between 0.0 and 1.0.")
+    phase: Optional[Literal[
+        "initializing",
+        "download",
+        "upload",
+        "processing",
+        "response",
+        "complete",
+        "cleanup",
+    ]] = Field(
+        None,
+        description="High level processing phase, aligned with Google's UX guidance.",
+    )
+    detail: Optional[str] = Field(
+        None,
+        description="Optional detail message giving additional context about the step.",
+    )
 
 
 class TranscriptionInput(MantisBaseModel):

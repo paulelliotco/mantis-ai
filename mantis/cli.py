@@ -35,7 +35,13 @@ def show_progress(progress_data: ProcessingProgress) -> None:
     assert isinstance(progress_data.progress, (int, float)), "Progress value must be a number"
     assert 0 <= progress_data.progress <= 1, "Progress value must be between 0 and 1"
     
-    console.print(f"[cyan]{progress_data.stage}[/cyan]: {int(progress_data.progress * 100)}%")
+    message = f"[cyan]{progress_data.stage}[/cyan]: {int(progress_data.progress * 100)}%"
+    if hasattr(progress_data, "phase") and progress_data.phase:
+        message += f" ({progress_data.phase})"
+    if hasattr(progress_data, "detail") and progress_data.detail:
+        message += f" - {progress_data.detail}"
+
+    console.print(message)
 
 
 def format_output(data: Any) -> str:
