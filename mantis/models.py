@@ -121,9 +121,29 @@ class ExtractOutput(MantisBaseModel):
 
 class ExtractionResult(BaseModel):
     """Result model for extraction with structured output support."""
+
+    model_config = BaseModel.model_config | {"extra": "allow"}
+
     key_points: Optional[List[str]] = None
     entities: Optional[List[str]] = None
     summary: Optional[str] = None
     raw_text: Optional[str] = None
     action_items: Optional[List[str]] = None
     additional_data: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def collect_additional_data(cls, value: Any):
+        if isinstance(value, dict):
+            extras: Dict[str, Any] = {}
+            for key in list(value.keys()):
+                if key not in cls.model_fields and key != "additional_data":
+                    extras[key] = value.pop(key)
+
+            if extras:
+                existing = value.get("additional_data")
+                if isinstance(existing, dict):
+                    extras.update(existing)
+                value["additional_data"] = extras
+
+        return value
