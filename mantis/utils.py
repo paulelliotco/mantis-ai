@@ -1,292 +1,44 @@
-import io
+import hashlib
+import logging
 import mimetypes
 import os
 import tempfile
 import threading
-import time
-import logging
-from typing import Callable, TypeVar, Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 from urllib.parse import urlparse
+
+from google import genai
+from google.genai import types
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from yt_dlp import YoutubeDL
-import google.generativeai as genai
-from google.generativeai import protos, types
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
 from .models import ProcessingProgress
 
 # Set up logging
 logger = logging.getLogger("mantis")
 
-# Progress constants for consistent UX updates
-_INITIAL_PROGRESS = 0.0
-_DOWNLOAD_PROGRESS_START = 0.05
-_DOWNLOAD_PROGRESS_END = 0.25
-_VALIDATION_PROGRESS = 0.3
-_UPLOAD_PREP_PROGRESS = 0.35
-_UPLOAD_PROGRESS_END = 0.6
-_FILE_PROCESSING_END = 0.75
-_MODEL_INVOKE_PROGRESS = 0.8
-_RESPONSE_PROGRESS = 0.9
-_COMPLETE_PROGRESS = 1.0
-
-_AUDIO_MIME_OVERRIDES: Dict[str, str] = {
-    ".mp3": "audio/mpeg",
-    ".wav": "audio/wav",
-    ".m4a": "audio/mp4",
-    ".ogg": "audio/ogg",
-    ".flac": "audio/flac",
-    ".aac": "audio/aac",
-}
-
-_SOUNDFILE_FORMAT_MIMES: Dict[str, str] = {
-    "AIFF": "audio/aiff",
-    "FLAC": "audio/flac",
-    "MP3": "audio/mpeg",
-    "MP4": "audio/mp4",
-    "OGG": "audio/ogg",
-    "WAV": "audio/wav",
-}
-
-_DEFAULT_MIME_TYPE = "application/octet-stream"
-
-_uploaded_file_cache: Dict[str, Dict[str, str]] = {}
-_uploaded_file_cache_lock = threading.Lock()
-
-
-class _ProgressFile:
-    """Wrap a file object to emit incremental upload progress callbacks."""
-
-    def __init__(self, file_obj: io.BufferedIOBase, chunk_callback: Optional[Callable[[int], None]] = None):
-        self._file_obj = file_obj
-        self._chunk_callback = chunk_callback
-
-    def read(self, size: int = -1) -> bytes:
-        data = self._file_obj.read(size)
-        if data and self._chunk_callback:
-            self._chunk_callback(len(data))
-        return data
-
-    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
-        return self._file_obj.seek(offset, whence)
-
-    def tell(self) -> int:
-        return self._file_obj.tell()
-
-    def close(self) -> None:
-        self._file_obj.close()
-
-    def __getattr__(self, item: str) -> Any:
-        return getattr(self._file_obj, item)
-
-
-def _detect_mime_type(file_path: str) -> str:
-    """Detect the MIME type of the provided audio file."""
-
-    extension = os.path.splitext(file_path)[1].lower()
-    if extension in _AUDIO_MIME_OVERRIDES:
-        return _AUDIO_MIME_OVERRIDES[extension]
-
-    mime_type, _ = mimetypes.guess_type(file_path)
-    if mime_type:
-        return mime_type
-
-    try:
-        import soundfile as sf  # type: ignore
-
-        with sf.SoundFile(file_path) as audio_file:
-            format_name = (audio_file.format or "").upper()
-        if format_name in _SOUNDFILE_FORMAT_MIMES:
-            return _SOUNDFILE_FORMAT_MIMES[format_name]
-    except ImportError:
-        logger.debug("soundfile library not available for MIME detection; using fallback")
-    except Exception as exc:
-        logger.debug("Failed to inspect audio with soundfile: %s", exc)
-
-    logger.debug("Falling back to default MIME type for %s", file_path)
-    return _DEFAULT_MIME_TYPE
-
-
-def _get_file_cache_key(file_path: str) -> str:
-    stats = os.stat(file_path)
-    absolute_path = os.path.abspath(file_path)
-    return f"{absolute_path}:{int(stats.st_mtime_ns)}:{stats.st_size}"
-
-
-def _get_cached_uploaded_file(cache_key: str) -> Optional[types.File]:
-    with _uploaded_file_cache_lock:
-        cached = _uploaded_file_cache.get(cache_key)
-
-    if not cached:
-        return None
-
-    try:
-        file = genai.get_file(cached["name"])
-    except Exception as exc:  # pragma: no cover - depends on external API availability
-        logger.debug("Failed to retrieve cached Gemini file %s: %s", cached.get("name"), exc)
-        with _uploaded_file_cache_lock:
-            _uploaded_file_cache.pop(cache_key, None)
-        return None
-
-    if file.state == protos.File.State.FAILED:
-        logger.debug("Cached Gemini file %s is in FAILED state; ignoring cache", file.name)
-        with _uploaded_file_cache_lock:
-            _uploaded_file_cache.pop(cache_key, None)
-        return None
-
-    return file
-
-
-def _store_uploaded_file(cache_key: str, file: types.File) -> None:
-    with _uploaded_file_cache_lock:
-        _uploaded_file_cache[cache_key] = {
-            "name": file.name,
-            "uri": file.uri,
-            "mime_type": file.mime_type,
-        }
-
-
-def _wait_for_file_processing(
-    file: types.File,
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
-    poll_interval: float = 1.0,
-    timeout: float = 300.0,
-) -> types.File:
-    start_time = time.time()
-
-    while file.state == protos.File.State.PROCESSING:
-        if progress_callback:
-            elapsed_ratio = min((time.time() - start_time) / max(timeout, poll_interval), 1.0)
-            progress_value = _UPLOAD_PROGRESS_END + elapsed_ratio * (_FILE_PROCESSING_END - _UPLOAD_PROGRESS_END)
-            progress_callback(
-                ProcessingProgress(
-                    stage="Processing uploaded audio on Gemini",
-                    progress=progress_value,
-                    phase="processing",
-                    detail=f"File {file.display_name or file.name} is processing",
-                )
-            )
-
-        time.sleep(poll_interval)
-
-        try:
-            file = genai.get_file(file.name)
-        except Exception as exc:  # pragma: no cover - depends on external API availability
-            logger.error("Failed to poll uploaded file status: %s", exc)
-            raise AudioProcessingError(f"Failed to poll uploaded file status: {exc}") from exc
-
-        if time.time() - start_time > timeout:
-            raise AudioProcessingError("Timed out waiting for Gemini to process the uploaded file")
-
-    if file.state == protos.File.State.FAILED:
-        error_message = getattr(file.error, "message", "Unknown error") if file.error else "Unknown error"
-        raise AudioProcessingError(f"Gemini failed to process the uploaded file: {error_message}")
-
-    if progress_callback:
-        progress_callback(
-            ProcessingProgress(
-                stage="Gemini finished preparing the upload",
-                progress=_FILE_PROCESSING_END,
-                phase="processing",
-                detail=f"File ready: {file.display_name or file.name}",
-            )
-        )
-
-    return file
-
-
-def _upload_file_with_progress(
-    file_path: str,
-    mime_type: str,
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
-) -> types.File:
-    file_size = os.path.getsize(file_path)
-    uploaded_bytes = 0
-
-    def on_chunk(chunk_size: int) -> None:
-        nonlocal uploaded_bytes
-        uploaded_bytes += chunk_size
-        if progress_callback and file_size > 0:
-            fraction = min(uploaded_bytes / file_size, 1.0)
-            progress_value = _UPLOAD_PREP_PROGRESS + fraction * (_UPLOAD_PROGRESS_END - _UPLOAD_PREP_PROGRESS)
-            detail = f"Uploaded {uploaded_bytes:,} of {file_size:,} bytes"
-            progress_callback(
-                ProcessingProgress(
-                    stage="Uploading audio to Gemini",
-                    progress=progress_value,
-                    phase="upload",
-                    detail=detail,
-                )
-            )
-
-    if progress_callback:
-        progress_callback(
-            ProcessingProgress(
-                stage="Preparing audio upload",
-                progress=_UPLOAD_PREP_PROGRESS,
-                phase="upload",
-                detail=os.path.basename(file_path),
-            )
-        )
-
-    if progress_callback and file_size > 0:
-        with open(file_path, "rb") as raw_file:
-            progress_file = _ProgressFile(raw_file, on_chunk)
-            uploaded = genai.upload_file(
-                path=progress_file,
-                mime_type=mime_type,
-                display_name=os.path.basename(file_path),
-                resumable=True,
-            )
-    else:
-        uploaded = genai.upload_file(
-            path=file_path,
-            mime_type=mime_type,
-            display_name=os.path.basename(file_path),
-            resumable=True,
-        )
-
-    if progress_callback:
-        progress_callback(
-            ProcessingProgress(
-                stage="Upload complete",
-                progress=_UPLOAD_PROGRESS_END,
-                phase="upload",
-                detail=os.path.basename(file_path),
-            )
-        )
-
-    return _wait_for_file_processing(uploaded, progress_callback)
-
-
-def _prepare_uploaded_file(
-    file_path: str,
-    mime_type: str,
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
-) -> types.File:
-    cache_key = _get_file_cache_key(file_path)
-    cached = _get_cached_uploaded_file(cache_key)
-
-    if cached is not None:
-        logger.debug("Reusing cached Gemini file for %s", file_path)
-        if progress_callback:
-            progress_callback(
-                ProcessingProgress(
-                    stage="Reusing cached Gemini upload",
-                    progress=_UPLOAD_PROGRESS_END,
-                    phase="upload",
-                    detail=cached.display_name or cached.name,
-                )
-            )
-        return _wait_for_file_processing(cached, progress_callback)
-
-    logger.debug("Uploading new audio file to Gemini: %s", file_path)
-    uploaded = _upload_file_with_progress(file_path, mime_type, progress_callback)
-    _store_uploaded_file(cache_key, uploaded)
-    return uploaded
-
-
-T = TypeVar('T')
+T = TypeVar("T")
 InputValidator = Callable[[str], Any]
 OutputCreator = Callable[[str], T]
+
+
+class MissingAPIKeyError(Exception):
+    """Raised when a Google API key is not configured."""
+
+
+@dataclass(frozen=True)
+class UploadedFile:
+    """Cached metadata for a file uploaded to Google AI."""
+
+    uri: str
+    mime_type: str
+    size_bytes: int
+
+
+_CLIENT_LOCK = threading.Lock()
+_CLIENT: Optional[genai.Client] = None
+_UPLOAD_CACHE: Dict[Tuple[str, float], UploadedFile] = {}
 
 class MantisError(Exception):
     """Base exception class for Mantis errors."""
@@ -307,6 +59,139 @@ class ModelInferenceError(MantisError):
 class ValidationError(MantisError):
     """Exception raised when there's a validation error."""
     pass
+
+
+def _get_api_key() -> str:
+    """Return the configured Google API key or raise."""
+
+    for env_key in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GENAI_API_KEY"):
+        value = os.getenv(env_key)
+        if value:
+            return value
+    raise MissingAPIKeyError(
+        "A Google API key is required. Set GOOGLE_API_KEY or GEMINI_API_KEY in your environment."
+    )
+
+
+def get_genai_client() -> genai.Client:
+    """Lazily create and cache a Google GenAI client."""
+
+    global _CLIENT
+    if _CLIENT is not None:
+        return _CLIENT
+
+    with _CLIENT_LOCK:
+        if _CLIENT is not None:
+            return _CLIENT
+
+        api_key = _get_api_key()
+
+        http_options: Optional[types.HttpOptions] = None
+        api_endpoint = os.getenv("GOOGLE_API_ENDPOINT")
+        api_region = os.getenv("GOOGLE_API_REGION") or os.getenv("VERTEX_LOCATION")
+        if api_endpoint or api_region:
+            http_options = types.HttpOptions(api_endpoint=api_endpoint, api_region=api_region)
+
+        client_options: Dict[str, Any] = {"api_key": api_key}
+        if http_options:
+            client_options["http_options"] = http_options
+
+        _CLIENT = genai.Client(**client_options)
+        return _CLIENT
+
+
+def reset_genai_client_cache() -> None:
+    """Reset cached client and uploads (used in tests)."""
+
+    global _CLIENT
+    with _CLIENT_LOCK:
+        _CLIENT = None
+    _UPLOAD_CACHE.clear()
+
+
+def _detect_mime_type(path: str) -> str:
+    mime, _ = mimetypes.guess_type(path)
+    if mime:
+        return mime
+    extension = os.path.splitext(path)[1].lower()
+    if extension == ".wav":
+        return "audio/wav"
+    if extension in {".m4a", ".aac"}:
+        return "audio/mp4"
+    if extension in {".flac"}:
+        return "audio/flac"
+    return "audio/mpeg"
+
+
+def _cache_key(path: str) -> Tuple[str, float]:
+    stat = os.stat(path)
+    return (os.path.abspath(path), stat.st_mtime)
+
+
+def _upload_audio_file(
+    client: genai.Client,
+    path: str,
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+) -> UploadedFile:
+    cache_key = _cache_key(path)
+    cached = _UPLOAD_CACHE.get(cache_key)
+    if cached:
+        logger.debug("Reusing cached upload for %s", path)
+        return cached
+
+    mime_type = _detect_mime_type(path)
+    display_name = os.path.basename(path)
+
+    if progress_callback:
+        progress_callback(ProcessingProgress("Uploading audio", 0.6))
+
+    with open(path, "rb") as file_obj:
+        upload = client.files.upload(
+            file=file_obj,
+            config={"mime_type": mime_type, "display_name": display_name},
+        )
+
+    uploaded = UploadedFile(uri=upload.uri, mime_type=upload.mime_type or mime_type, size_bytes=upload.size_bytes)
+    _UPLOAD_CACHE[cache_key] = uploaded
+    return uploaded
+
+
+def _build_contents(prompt: str, uploaded_file: UploadedFile) -> list:
+    return [
+        {
+            "role": "user",
+            "parts": [
+                {"text": prompt},
+                {"file_data": {"file_uri": uploaded_file.uri, "mime_type": uploaded_file.mime_type}},
+            ],
+        }
+    ]
+
+
+def _extract_output_text(response: Any) -> str:
+    if response is None:
+        raise ModelInferenceError("Received an empty response from Google GenAI")
+
+    if hasattr(response, "output_text") and response.output_text:
+        return response.output_text
+
+    if hasattr(response, "text") and response.text:
+        return response.text
+
+    if hasattr(response, "candidates"):
+        candidates = getattr(response, "candidates") or []
+        for candidate in candidates:
+            content = getattr(candidate, "content", None)
+            if not content:
+                continue
+            parts = getattr(content, "parts", None)
+            if not parts:
+                continue
+            text_parts = [getattr(part, "text", None) for part in parts if getattr(part, "text", None)]
+            if text_parts:
+                return "\n".join(text_parts)
+
+    raise ModelInferenceError("Unable to extract text from Google GenAI response")
 
 def is_youtube_url(url: str) -> bool:
     """
@@ -454,13 +339,30 @@ def stream_youtube_audio(url: str, progress_callback: Optional[Callable[[Process
         logger.error(f"Error downloading YouTube audio from {url}: {e}")
         raise YouTubeDownloadError(f"Failed to download audio from YouTube: {str(e)}")
 
+def _default_safety_settings() -> Optional[List[types.SafetySetting]]:
+    try:
+        return [
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUAL_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+        ]
+    except AttributeError:
+        # Older versions of the SDK may not expose harm categories; fall back gracefully.
+        return None
+
+
 def process_audio_with_gemini(
     audio_file: str,
     validate_input: InputValidator,
     create_output: OutputCreator[T],
     model_prompt: str,
-    model_name: str = "gemini-1.5-flash",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    model_name: str = "gemini-1.5-flash-latest",
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    *,
+    response_schema: Optional[types.Schema] = None,
+    output_mime_type: Optional[str] = None,
+    client: Optional[genai.Client] = None,
 ) -> T:
     """
     Process audio with Gemini AI using the provided input/output handlers.
@@ -533,79 +435,57 @@ def process_audio_with_gemini(
 
         # Validate input
         try:
-            validated_input = validate_input(file_to_process)
-            assert validated_input is not None, "Validated input cannot be None"
-            if progress_callback:
-                progress_callback(
-                    ProcessingProgress(
-                        stage="Validated audio input",
-                        progress=_VALIDATION_PROGRESS,
-                        phase="initializing",
-                        detail=os.path.basename(file_to_process),
-                    )
-                )
+            _validated_input = validate_input(file_to_process)
+            # Assert validated input is not None
+            assert _validated_input is not None, "Validated input cannot be None"
         except Exception as e:
             logger.error(f"Validation error: {e}")
             raise ValidationError(f"Input validation failed: {str(e)}")
-
-        mime_type = _detect_mime_type(file_to_process)
-        logger.debug("Detected MIME type %s for %s", mime_type, file_to_process)
-
-        uploaded_file = _prepare_uploaded_file(file_to_process, mime_type, progress_callback)
-
+        
+        # Report progress before model processing
+        if progress_callback:
+            progress_callback(ProcessingProgress("Processing with AI model", 0.5))
+        
+        # Process with Gemini using the Responses API
         try:
-            model = genai.GenerativeModel(model_name)
-            assert model is not None, "Failed to create Gemini model"
+            if client is None:
+                client = get_genai_client()
+
+            uploaded = _upload_audio_file(client, file_to_process, progress_callback)
+            contents = _build_contents(model_prompt, uploaded)
 
             if progress_callback:
-                progress_callback(
-                    ProcessingProgress(
-                        stage="Submitting audio to Gemini model",
-                        progress=_MODEL_INVOKE_PROGRESS,
-                        phase="processing",
-                        detail=model_name,
-                    )
-                )
+                progress_callback(ProcessingProgress("Generating response", 0.75))
 
-            response = model.generate_content(
-                [
-                    {"text": model_prompt},
-                    {
-                        "file_data": {
-                            "file_uri": uploaded_file.uri,
-                            "mime_type": uploaded_file.mime_type or mime_type,
-                        }
-                    },
-                ]
-            )
+            request_params = {
+                "model": model_name,
+                "contents": contents,
+            }
 
-            assert response is not None, "Model response cannot be None"
-            assert hasattr(response, "text"), "Model response must have a text attribute"
-            assert response.text, "Model response text cannot be empty"
+            safety_settings = _default_safety_settings()
+            if safety_settings:
+                request_params["safety_settings"] = safety_settings
+            if response_schema is not None:
+                request_params["response_schema"] = response_schema
+            if output_mime_type:
+                request_params["output_mime_type"] = output_mime_type
+
+            response = client.responses.generate(**request_params)
 
             if progress_callback:
-                progress_callback(
-                    ProcessingProgress(
-                        stage="Received response from Gemini",
-                        progress=_RESPONSE_PROGRESS,
-                        phase="response",
-                        detail=model_name,
-                    )
-                )
+                progress_callback(ProcessingProgress("Processing complete", 0.95))
 
-            output = create_output(response.text)
+            text = _extract_output_text(response)
+            output = create_output(text)
+
+            if progress_callback:
+                progress_callback(ProcessingProgress("Done", 1.0))
+
             assert output is not None, "Created output cannot be None"
-
-            if progress_callback:
-                progress_callback(
-                    ProcessingProgress(
-                        stage="Processing complete",
-                        progress=_COMPLETE_PROGRESS,
-                        phase="complete",
-                    )
-                )
-
             return output
+        except MissingAPIKeyError as e:
+            logger.error("API key missing: %s", e)
+            raise ModelInferenceError(str(e))
         except Exception as e:
             logger.error(f"Model inference error: {e}")
             raise ModelInferenceError(f"Error processing with Gemini AI: {str(e)}")

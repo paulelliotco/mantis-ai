@@ -2,7 +2,7 @@ from typing import Optional, List, Any, Literal, Union, Tuple, Dict
 from pydantic import BaseModel as PydanticBaseModel, Field, field_validator, model_validator
 import json
 
-SUPPORTED_AUDIO_FORMATS = (".mp3", ".wav", ".m4a", ".ogg")
+SUPPORTED_AUDIO_FORMATS = (".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac")
 
 
 class BaseModel(PydanticBaseModel):
@@ -60,7 +60,7 @@ class TranscriptionInput(MantisBaseModel):
     """
 
     audio_file: str = Field(..., description="Path to the audio file or YouTube URL to be transcribed.")
-    model: str = Field("gemini-1.5-flash", description="The Gemini model to use for transcription.")
+    model: str = Field("gemini-1.5-flash-latest", description="The Gemini model to use for transcription.")
 
     @field_validator("audio_file")
     @classmethod
@@ -87,7 +87,7 @@ class TranscriptionResult(BaseModel):
 
 class SummarizeInput(MantisBaseModel):
     audio_file: str = Field(..., description="Path to the audio file or YouTube URL to be summarized.")
-    model: str = Field("gemini-1.5-flash", description="The Gemini model to use for summarization.")
+    model: str = Field("gemini-1.5-flash-latest", description="The Gemini model to use for summarization.")
     max_length: Optional[int] = Field(None, description="Maximum length of the summary in characters.")
 
     @field_validator("audio_file")
@@ -111,7 +111,7 @@ class SummaryResult(BaseModel):
 class ExtractInput(MantisBaseModel):
     audio_file: str = Field(..., description="Path to the audio file or YouTube URL for extraction.")
     prompt: str = Field(..., description="Custom prompt specifying what information to extract.")
-    model: str = Field("gemini-1.5-flash", description="The Gemini model to use for extraction.")
+    model: str = Field("gemini-1.5-pro-latest", description="The Gemini model to use for extraction.")
     structured_output: bool = Field(False, description="Whether to attempt to return structured data.")
 
     @field_validator("audio_file")
@@ -136,8 +136,29 @@ class ExtractOutput(MantisBaseModel):
 
 class ExtractionResult(BaseModel):
     """Result model for extraction with structured output support."""
+
+    model_config = BaseModel.model_config | {"extra": "allow"}
+
     key_points: Optional[List[str]] = None
     entities: Optional[List[str]] = None
     summary: Optional[str] = None
     raw_text: Optional[str] = None
+    action_items: Optional[List[str]] = None
     additional_data: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def collect_additional_data(cls, value: Any):
+        if isinstance(value, dict):
+            extras: Dict[str, Any] = {}
+            for key in list(value.keys()):
+                if key not in cls.model_fields and key != "additional_data":
+                    extras[key] = value.pop(key)
+
+            if extras:
+                existing = value.get("additional_data")
+                if isinstance(existing, dict):
+                    extras.update(existing)
+                value["additional_data"] = extras
+
+        return value

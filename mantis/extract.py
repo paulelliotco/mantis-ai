@@ -1,20 +1,48 @@
-import os
-from typing import Union, Optional, Callable
-import google.generativeai as genai
-from .models import ExtractInput, ExtractOutput, ProcessingProgress
-from .utils import process_audio_with_gemini, MantisError
+import json
+import logging
+from typing import Callable, Optional, Union
 
-# Configure Gemini AI
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY"))
+from google.genai import types
+
+from .models import ExtractInput, ExtractOutput, ExtractionResult, ProcessingProgress
+from .utils import MantisError, process_audio_with_gemini
+
+
+logger = logging.getLogger("mantis.extract")
+
+
+DEFAULT_EXTRACTION_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "summary": types.Schema(type=types.Type.STRING, description="Concise description of the audio"),
+        "key_points": types.Schema(
+            type=types.Type.ARRAY,
+            items=types.Schema(type=types.Type.STRING),
+            description="Major takeaways or bullet points",
+        ),
+        "entities": types.Schema(
+            type=types.Type.ARRAY,
+            items=types.Schema(type=types.Type.STRING),
+            description="Important people, organizations, or places mentioned",
+        ),
+        "action_items": types.Schema(
+            type=types.Type.ARRAY,
+            items=types.Schema(type=types.Type.STRING),
+            description="Follow-up tasks derived from the conversation",
+        ),
+        "raw_text": types.Schema(type=types.Type.STRING, description="Verbatim excerpt or supporting text"),
+    },
+)
+
 
 
 def extract(
-    audio_file: str, 
-    prompt: str, 
+    audio_file: str,
+    prompt: str,
     raw_output: bool = False,
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-1.5-pro-latest",
     structured_output: bool = False,
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
 ) -> Union[str, ExtractOutput]:
     """
     Extract information from an audio source using Gemini AI.
@@ -47,26 +75,42 @@ def extract(
     # Enhance prompt for structured output if requested
     enhanced_prompt = prompt
     if structured_output:
-        enhanced_prompt = f"{prompt} Please format your response as structured data that can be parsed as JSON."
+        enhanced_prompt = (
+            f"{prompt} Return your answer using the provided schema, focusing on factual data. "
+            "If a field is not applicable, omit it."
+        )
     
     # Assert enhanced prompt is not empty
     assert enhanced_prompt, "Enhanced prompt cannot be empty"
     
+    def _create_plain_output(text: str) -> ExtractOutput:
+        return ExtractOutput(extraction=text, structured_data=None)
+
+    def _create_structured_output(text: str) -> ExtractOutput:
+        try:
+            data = json.loads(text) if text else {}
+            validated = ExtractionResult.model_validate(data)
+            payload = validated.model_dump(exclude_none=True)
+            extraction_text = payload.get("summary") or payload.get("raw_text") or prompt
+            return ExtractOutput(extraction=extraction_text, structured_data=payload)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Failed to parse structured extraction output: %s", exc)
+            return ExtractOutput(extraction=text, structured_data=None)
+
     result = process_audio_with_gemini(
         audio_file=audio_file,
         validate_input=lambda x: ExtractInput(
-            audio_file=x, 
-            prompt=prompt, 
+            audio_file=x,
+            prompt=prompt,
             model=model,
-            structured_output=structured_output
+            structured_output=structured_output,
         ),
-        create_output=lambda x: ExtractOutput(
-            extraction=x,
-            structured_data=None  # In a real implementation, we would attempt to parse JSON here
-        ),
+        create_output=_create_structured_output if structured_output else _create_plain_output,
         model_prompt=enhanced_prompt,
         model_name=model,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        response_schema=DEFAULT_EXTRACTION_SCHEMA if structured_output else None,
+        output_mime_type="application/json" if structured_output else None,
     )
     
     # Assert result is not None
