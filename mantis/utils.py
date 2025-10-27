@@ -333,6 +333,7 @@ def process_audio_with_gemini(
         model_prompt: Prompt to send to the model
         model_name: Name of the Gemini model to use
         progress_callback: Optional callback function to report progress
+        response_schema: Optional JSON schema describing the desired structured response
         
     Returns:
         T: The processed output

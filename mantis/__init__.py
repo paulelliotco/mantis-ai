@@ -64,8 +64,18 @@ from .models import (
     ExtractInput, ExtractOutput,
     ExtractionResult, ProcessingProgress
 )
+from .response_schemas import (
+    ActionItem,
+    ActionItemListSchema,
+    AudioInsightsSchema,
+    COMMON_RESPONSE_SCHEMAS,
+    EntityMention,
+    SpeakerInsight,
+    SpeakerSummarySchema,
+    SentimentSnapshot,
+)
 from .utils import (
-    MantisError, AudioProcessingError, 
+    MantisError, AudioProcessingError,
     YouTubeDownloadError, ModelInferenceError,
     ValidationError
 )
@@ -88,6 +98,14 @@ __all__ = [
     "YouTubeDownloadError",
     "ModelInferenceError",
     "ValidationError",
+    "AudioInsightsSchema",
+    "ActionItemListSchema",
+    "SpeakerSummarySchema",
+    "ActionItem",
+    "EntityMention",
+    "SpeakerInsight",
+    "SentimentSnapshot",
+    "COMMON_RESPONSE_SCHEMAS",
     "enable_verbose_logging",
     "enable_debug_logging",
     "enable_warning_logging"

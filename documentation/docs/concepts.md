@@ -91,9 +91,18 @@ result = mantis.extract(audio_file, prompt, structured_output=False)
 Under the hood:
 1. The audio file is validated
 2. The user's prompt is combined with the audio
-3. If `structured_output` is True, the prompt is enhanced to request structured data
-4. The audio is sent to Gemini AI with the prompt
-5. The extraction result is returned as a string
+3. If `structured_output` is True, the prompt is enhanced and a JSON schema is supplied via Gemini's
+   ``response_schema`` parameter
+4. The audio is sent to Gemini AI with the prompt and schema
+5. The response is validated against the schema and returned as structured data (with graceful fallbacks when parsing fails)
+
+### Domain-specific schemas
+
+Mantis ships with reusable schemas for common tasks such as summarising speakers, generating action items, and providing a
+single ``AudioInsightsSchema`` that combines key signals. You can reuse these schemas via the
+``mantis.response_schemas.COMMON_RESPONSE_SCHEMAS`` registry or pass your own Pydantic model / JSON schema using the
+``response_schema`` parameter on :func:`mantis.extract`. This allows teams to align the structured output with internal data
+contracts while still benefiting from prompt engineering in the ``prompt`` argument.
 
 ## Error Handling
 

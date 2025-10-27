@@ -113,11 +113,12 @@ print(f"Word count: {result.word_count}")
 
 ```python
 mantis.extract(
-    audio_file: str, 
-    prompt: str, 
+    audio_file: str,
+    prompt: str,
     raw_output: bool = False,
     model: str = "gemini-1.5-flash",
     structured_output: bool = False,
+    response_schema: Optional[Union[str, Dict[str, Any], Type[BaseModel]]] = None,
     progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
 ) -> Union[str, ExtractOutput]
 ```
@@ -130,7 +131,11 @@ Extracts information from audio based on a custom prompt.
 - **prompt** (`str`): Custom prompt specifying what information to extract.
 - **raw_output** (`bool`, optional): If `True`, returns the full `ExtractOutput` object. If `False` (default), returns just the extraction string.
 - **model** (`str`, optional): The Gemini model to use for extraction. Default is "gemini-1.5-flash".
-- **structured_output** (`bool`, optional): Whether to attempt to return structured data. Default is `False`.
+- **structured_output** (`bool`, optional): Whether to attempt to return structured data. Default is `False`. When enabled the
+  response is validated against a JSON schema before being returned.
+- **response_schema** (`str | Dict[str, Any] | Type[BaseModel]`, optional): Schema identifier, JSON schema, or Pydantic model
+  describing the structured response shape. Defaults to the reusable ``AudioInsightsSchema`` when omitted. Use a key from
+  ``mantis.response_schemas.COMMON_RESPONSE_SCHEMAS`` or provide a custom schema to tailor the output to your workflow.
 - **progress_callback** (`Callable[[ProcessingProgress], None]`, optional): Optional callback function to report progress.
 
 #### Returns
@@ -154,14 +159,26 @@ key_points = mantis.extract("meeting.mp3", "What are the main action items?")
 
 # Request structured output
 structured_data = mantis.extract(
-    "interview.mp3", 
-    "Extract the speaker's name, age, and occupation", 
+    "interview.mp3",
+    "Extract the speaker's name, age, and occupation",
     structured_output=True
 )
 
 # Get the full output object
 result = mantis.extract("meeting.mp3", "List all decisions made", raw_output=True)
 print(f"Extraction: {result.extraction}")
+
+# Provide a custom schema tailored to your workflow
+from mantis.response_schemas import SpeakerSummarySchema
+
+speaker_summary = mantis.extract(
+    "townhall.mp3",
+    "Summarise each speaker's contribution",
+    structured_output=True,
+    response_schema=SpeakerSummarySchema,
+    raw_output=True,
+)
+print(speaker_summary.structured_data)
 ```
 
 ## Logging Functions

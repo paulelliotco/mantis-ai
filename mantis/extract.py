@@ -36,6 +36,78 @@ DEFAULT_EXTRACTION_SCHEMA = types.Schema(
 
 
 
+logger = logging.getLogger("mantis")
+
+
+def _resolve_response_schema(
+    structured_output: bool,
+    schema: Optional[Union[str, Dict[str, Any], Type[PydanticBaseModel]]]
+) -> Tuple[Optional[Dict[str, Any]], Optional[Callable[[str], Dict[str, Any]]]]:
+    """Resolve a schema specification into a JSON schema and parser."""
+
+    if not structured_output:
+        return None, None
+
+    resolved_model: Optional[Type[PydanticBaseModel]] = None
+
+    if schema is None:
+        resolved_model = AudioInsightsSchema
+    elif isinstance(schema, str):
+        if schema not in COMMON_RESPONSE_SCHEMAS:
+            raise ValueError(
+                f"Unknown response schema '{schema}'. Available schemas: {', '.join(COMMON_RESPONSE_SCHEMAS)}"
+            )
+        resolved_model = COMMON_RESPONSE_SCHEMAS[schema]
+    elif isinstance(schema, dict):
+        def parser(response_text: str) -> Dict[str, Any]:
+            data = json.loads(response_text)
+            if not isinstance(data, dict):
+                raise TypeError("Structured response must decode to a JSON object.")
+            return data
+
+        return schema, parser
+    elif isinstance(schema, type) and issubclass(schema, PydanticBaseModel):
+        resolved_model = schema
+    else:
+        raise TypeError("response_schema must be None, a schema key, dict, or Pydantic model class.")
+
+    assert resolved_model is not None, "Resolved Pydantic model cannot be None when structured output is requested."
+
+    def parser(response_text: str) -> Dict[str, Any]:
+        model = resolved_model.model_validate_json(response_text)
+        return model.model_dump()
+
+    return resolved_model.model_json_schema(), parser
+
+
+def _parse_structured_response(
+    response_text: str,
+    parser: Optional[Callable[[str], Dict[str, Any]]]
+) -> Optional[Dict[str, Any]]:
+    """Attempt to parse structured data from the model response."""
+
+    if not parser:
+        return None
+
+    try:
+        return parser(response_text)
+    except (ValidationError, json.JSONDecodeError, TypeError) as exc:
+        logger.warning(
+            "Failed to validate structured response against schema: %s. Falling back to raw text.",
+            exc,
+        )
+
+        # Google guidance recommends falling back to text when the response cannot be parsed.
+        # Attempt one more permissive parse by trimming leading/trailing content before giving up.
+        try:
+            start = response_text.index("{")
+            end = response_text.rindex("}") + 1
+            trimmed = response_text[start:end]
+            return parser(trimmed)
+        except Exception:
+            return None
+
+
 def extract(
     audio_file: str,
     prompt: str,
@@ -54,6 +126,9 @@ def extract(
                    If False (default), returns just the extraction string.
         model: The Gemini model to use for extraction
         structured_output: Whether to attempt to return structured data
+        response_schema: Optional schema identifier, JSON schema dictionary, or Pydantic model
+            describing the structured response shape when ``structured_output`` is True. If not
+            provided, the default ``AudioInsightsSchema`` is used.
         progress_callback: Optional callback function to report progress
         
     Returns:
@@ -112,9 +187,17 @@ def extract(
         response_schema=DEFAULT_EXTRACTION_SCHEMA if structured_output else None,
         output_mime_type="application/json" if structured_output else None,
     )
-    
+
     # Assert result is not None
-    assert result is not None, "Extraction result cannot be None"
+    assert response_text is not None, "Extraction result cannot be None"
+    assert isinstance(response_text, str), "Model response must be text"
+
+    structured_data = _parse_structured_response(response_text, schema_parser)
+
+    result = ExtractOutput(
+        extraction=response_text,
+        structured_data=structured_data,
+    )
     
     if raw_output:
         # Assert result is an ExtractOutput object
