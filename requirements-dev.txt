@@ -10,3 +10,4 @@ python-dotenv>=1.0.0,<2.0.0
 yt-dlp>=2023.10.0,<2024.0.0
 SpeechRecognition>=3.0.0,<4.0.0
 grpcio==1.60.1  # Pin specific version to avoid warnings
+google-genai>=0.3.0

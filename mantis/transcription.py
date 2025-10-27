@@ -1,11 +1,11 @@
-import os
 from typing import Union, Optional, Callable
-import google.generativeai as genai
 from .models import TranscriptionInput, TranscriptionOutput, ProcessingProgress
-from .utils import process_audio_with_gemini, MantisError
-
-# Configure Gemini AI
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY"))
+from .utils import (
+    process_audio_with_gemini,
+    MantisError,
+    DEFAULT_SAFETY_SETTINGS,
+    DEFAULT_STRING_RESPONSE_SCHEMA,
+)
 
 def transcribe(
     audio_file: str, 
@@ -59,7 +59,10 @@ def transcribe(
         create_output=lambda x: TranscriptionOutput(transcription=x),
         model_prompt=model_prompt,
         model_name=model,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        safety_settings=DEFAULT_SAFETY_SETTINGS,
+        response_schema=DEFAULT_STRING_RESPONSE_SCHEMA,
+        generation_config={"response_mime_type": "text/plain"},
     )
     
     # Assert result is not None

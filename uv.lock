@@ -560,20 +560,19 @@ wheels = [
 ]
 
 [[package]]
-name = "google-generativeai"
-version = "0.3.2"
+name = "google-genai"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "google-ai-generativelanguage" },
     { name = "google-api-core" },
     { name = "google-auth" },
+    { name = "googleapis-common-protos" },
+    { name = "proto-plus" },
     { name = "protobuf" },
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/7f/35f89209487f8473edc9d2cecef894a54680cf666e32893a767d12a8dba9/google_generativeai-0.3.2-py3-none-any.whl", hash = "sha256:8761147e6e167141932dc14a7b7af08f2310dd56668a78d206c19bb8bd85bcd7", size = 146909 },
-]
+wheels = []
 
 [[package]]
 name = "googleapis-common-protos"
@@ -701,7 +700,7 @@ name = "mantisai"
 version = "0.1.7"
 source = { editable = "." }
 dependencies = [
-    { name = "google-generativeai" },
+    { name = "google-genai" },
     { name = "grpcio" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -727,7 +726,7 @@ dev = [
 requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0,<24.0.0" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0,<7.0.0" },
-    { name = "google-generativeai", specifier = ">=0.3.0,<0.4.0" },
+    { name = "google-genai", specifier = ">=0.3.0" },
     { name = "grpcio", specifier = "==1.60.1" },
     { name = "pydantic", specifier = ">=2.0.0,<3.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0,<8.0.0" },

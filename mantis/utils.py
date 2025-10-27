@@ -1,15 +1,25 @@
 import os
+import mimetypes
 import tempfile
 import logging
-from typing import Callable, TypeVar, Any, Dict, Optional, Union, Generic, cast
+from typing import Callable, TypeVar, Any, Dict, Optional, Union, List
 from urllib.parse import urlparse
 from yt_dlp import YoutubeDL
-import google.generativeai as genai
+from google import genai
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .models import ProcessingProgress
 
 # Set up logging
 logger = logging.getLogger("mantis")
+
+DEFAULT_SAFETY_SETTINGS: List[Dict[str, Any]] = [
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_SEXUAL", "threshold": "BLOCK_NONE"},
+]
+
+DEFAULT_STRING_RESPONSE_SCHEMA: Dict[str, Any] = {"type": "STRING"}
 
 T = TypeVar('T')
 InputValidator = Callable[[str], Any]
@@ -34,6 +44,63 @@ class ModelInferenceError(MantisError):
 class ValidationError(MantisError):
     """Exception raised when there's a validation error."""
     pass
+
+
+def _normalize_model_name(model_name: str) -> str:
+    name = model_name.strip()
+    if name.startswith("models/") or name.startswith("tunedModels/"):
+        return name
+    return f"models/{name}"
+
+
+def create_genai_client() -> genai.Client:
+    """Create a configured Google GenAI client following documented precedence."""
+    api_key = (
+        os.getenv("GOOGLE_API_KEY")
+        or os.getenv("GOOGLE_GENAI_API_KEY")
+        or os.getenv("GEMINI_API_KEY")
+    )
+    api_endpoint = (
+        os.getenv("GOOGLE_API_ENDPOINT")
+        or os.getenv("GOOGLE_GENAI_API_ENDPOINT")
+        or os.getenv("GOOGLE_VERTEX_AI_ENDPOINT")
+    )
+
+    client_kwargs: Dict[str, Any] = {}
+    if api_endpoint:
+        client_kwargs["api_endpoint"] = api_endpoint
+        logger.debug("Configuring Google GenAI client with custom API endpoint: %s", api_endpoint)
+
+    if api_key:
+        client_kwargs["api_key"] = api_key
+        logger.debug("Using Google AI Studio API key for GenAI client authentication")
+        return genai.Client(**client_kwargs)
+
+    project = (
+        os.getenv("GOOGLE_CLOUD_PROJECT")
+        or os.getenv("GOOGLE_GENAI_PROJECT")
+        or os.getenv("GOOGLE_VERTEX_PROJECT")
+    )
+    location = (
+        os.getenv("GOOGLE_CLOUD_LOCATION")
+        or os.getenv("GOOGLE_CLOUD_REGION")
+        or os.getenv("GOOGLE_VERTEX_LOCATION")
+        or "us-central1"
+    )
+
+    if project:
+        client_kwargs["vertexai"] = {"project": project, "location": location}
+        logger.debug(
+            "Using Vertex AI configuration for GenAI client authentication (project=%s, location=%s)",
+            project,
+            location,
+        )
+        return genai.Client(**client_kwargs)
+
+    raise MantisError(
+        "Unable to configure Google GenAI client. Set GOOGLE_API_KEY (AI Studio) or GOOGLE_CLOUD_PROJECT"
+        " and GOOGLE_CLOUD_LOCATION (Vertex AI)."
+    )
 
 def is_youtube_url(url: str) -> bool:
     """
@@ -146,7 +213,10 @@ def process_audio_with_gemini(
     create_output: OutputCreator[T],
     model_prompt: str,
     model_name: str = "gemini-1.5-flash",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    safety_settings: Optional[List[Dict[str, Any]]] = None,
+    response_schema: Optional[Dict[str, Any]] = None,
+    generation_config: Optional[Dict[str, Any]] = None,
 ) -> T:
     """
     Process audio with Gemini AI using the provided input/output handlers.
@@ -158,6 +228,9 @@ def process_audio_with_gemini(
         model_prompt: Prompt to send to the model
         model_name: Name of the Gemini model to use
         progress_callback: Optional callback function to report progress
+        safety_settings: Optional list of safety settings to apply to the request
+        response_schema: Optional response schema (JSON schema dict) for structured outputs
+        generation_config: Optional generation configuration parameters
         
     Returns:
         T: The processed output
@@ -177,6 +250,9 @@ def process_audio_with_gemini(
     assert model_name, "Model name cannot be empty"
     assert isinstance(model_name, str), "Model name must be a string"
     assert progress_callback is None or callable(progress_callback), "progress_callback must be None or a callable function"
+    assert safety_settings is None or isinstance(safety_settings, list), "safety_settings must be a list or None"
+    assert response_schema is None or isinstance(response_schema, dict), "response_schema must be a dict or None"
+    assert generation_config is None or isinstance(generation_config, dict), "generation_config must be a dict or None"
     
     temp_file_path = None
     output = None
@@ -217,41 +293,86 @@ def process_audio_with_gemini(
         if progress_callback:
             progress_callback(ProcessingProgress("Processing with AI model", 0.5))
         
-        # Process with Gemini using the newer API
+        # Process with Gemini using the modern client API
         try:
-            model = genai.GenerativeModel(model_name)
-            
-            # Assert model is not None
-            assert model is not None, "Failed to create Gemini model"
-            
-            # Open the file in binary mode
-            with open(file_to_process, "rb") as f:
-                file_content = f.read()
-            
-            # Assert file content is not empty
-            assert file_content, "Audio file content cannot be empty"
-            
-            # Create a file part for the model
-            file_part = {"mime_type": "audio/mpeg", "data": file_content}
-            
-            # Generate content with the file and prompt
-            response = model.generate_content([model_prompt, file_part])
-            
-            # Assert response is not None
-            assert response is not None, "Model response cannot be None"
-            assert hasattr(response, 'text'), "Model response must have a text attribute"
-            assert response.text, "Model response text cannot be empty"
-            
-            # Report completion
+            client = create_genai_client()
+
+            mime_type, _ = mimetypes.guess_type(file_to_process)
+            if not mime_type:
+                mime_type = "application/octet-stream"
+
+            with open(file_to_process, "rb") as file_handle:
+                uploaded_file = client.files.upload(
+                    file=file_handle,
+                    display_name=os.path.basename(file_to_process),
+                    mime_type=mime_type,
+                )
+
+            file_uri = getattr(uploaded_file, "name", None) or getattr(uploaded_file, "uri", None)
+            if not file_uri:
+                raise ModelInferenceError("Uploaded file response did not provide a file identifier")
+
+            contents = [
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "file_data": {
+                                "file_uri": file_uri,
+                                "mime_type": getattr(uploaded_file, "mime_type", mime_type),
+                            }
+                        },
+                        {"text": model_prompt},
+                    ],
+                }
+            ]
+
+            request_payload: Dict[str, Any] = {
+                "model": _normalize_model_name(model_name),
+                "contents": contents,
+            }
+
+            if safety_settings:
+                request_payload["safety_settings"] = safety_settings
+
+            if response_schema:
+                request_payload["response_schema"] = response_schema
+
+            if generation_config:
+                request_payload["generation_config"] = generation_config
+
+            response = client.responses.generate(**request_payload)
+
+            response_text = getattr(response, "output_text", None)
+            if not response_text and hasattr(response, "text"):
+                response_text = getattr(response, "text")
+
+            if not response_text and hasattr(response, "candidates"):
+                candidate_texts: List[str] = []
+                for candidate in getattr(response, "candidates", []):
+                    candidate_content = getattr(candidate, "content", None)
+                    if candidate_content is not None and hasattr(candidate_content, "parts"):
+                        for part in getattr(candidate_content, "parts", []):
+                            part_text = getattr(part, "text", None)
+                            if part_text:
+                                candidate_texts.append(part_text)
+                            elif isinstance(part, dict) and part.get("text"):
+                                candidate_texts.append(part["text"])
+                    elif hasattr(candidate, "text") and getattr(candidate, "text"):
+                        candidate_texts.append(getattr(candidate, "text"))
+                if candidate_texts:
+                    response_text = "\n".join(candidate_texts)
+
+            if not response_text:
+                raise ModelInferenceError("Model response did not include any text output")
+
             if progress_callback:
                 progress_callback(ProcessingProgress("Processing complete", 1.0))
-            
-            # Create and return output
-            output = create_output(response.text)
-            
-            # Assert output is not None
+
+            output = create_output(response_text)
+
             assert output is not None, "Created output cannot be None"
-            
+
             return output
         except Exception as e:
             logger.error(f"Model inference error: {e}")
