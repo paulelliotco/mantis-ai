@@ -1,20 +1,21 @@
-import os
-from typing import Union, Optional, Callable
-import google.generativeai as genai
+from typing import Union, Optional, Callable, Any
 from .models import ExtractInput, ExtractOutput, ProcessingProgress
 from .utils import process_audio_with_gemini, MantisError
-
-# Configure Gemini AI
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY"))
 
 
 def extract(
     audio_file: str, 
     prompt: str, 
     raw_output: bool = False,
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-1.5-flash-latest",
     structured_output: bool = False,
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    *,
+    stream: bool = False,
+    stream_callback: Optional[Callable[[str], None]] = None,
+    safety_settings: Optional[Any] = None,
+    response_schema: Optional[Any] = None,
+    response_mime_type: Optional[str] = None,
 ) -> Union[str, ExtractOutput]:
     """
     Extract information from an audio source using Gemini AI.
@@ -27,6 +28,11 @@ def extract(
         model: The Gemini model to use for extraction
         structured_output: Whether to attempt to return structured data
         progress_callback: Optional callback function to report progress
+        stream: If True, stream partial responses as they arrive
+        stream_callback: Optional callable to receive streaming text chunks
+        safety_settings: Optional Gemini safety settings configuration
+        response_schema: Optional schema definition for structured JSON responses
+        response_mime_type: Optional MIME type for the structured response (for example, "application/json")
         
     Returns:
         Either a string containing the extracted information or an ExtractOutput object
@@ -66,7 +72,12 @@ def extract(
         ),
         model_prompt=enhanced_prompt,
         model_name=model,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        stream=stream,
+        stream_callback=stream_callback,
+        safety_settings=safety_settings,
+        response_schema=response_schema,
+        response_mime_type=response_mime_type,
     )
     
     # Assert result is not None

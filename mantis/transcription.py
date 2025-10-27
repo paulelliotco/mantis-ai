@@ -1,18 +1,17 @@
-import os
-from typing import Union, Optional, Callable
-import google.generativeai as genai
+from typing import Union, Optional, Callable, Any
 from .models import TranscriptionInput, TranscriptionOutput, ProcessingProgress
 from .utils import process_audio_with_gemini, MantisError
-
-# Configure Gemini AI
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY"))
 
 def transcribe(
     audio_file: str, 
     raw_output: bool = False,
     clean_output: bool = False,
-    model: str = "gemini-1.5-flash",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    model: str = "gemini-1.5-flash-latest",
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    *,
+    stream: bool = False,
+    stream_callback: Optional[Callable[[str], None]] = None,
+    safety_settings: Optional[Any] = None,
 ) -> Union[str, TranscriptionOutput]:
     """
     Transcribe an audio source using Gemini AI.
@@ -25,6 +24,9 @@ def transcribe(
                      If False (default), provides the verbatim transcription.
         model: The Gemini model to use for transcription
         progress_callback: Optional callback function to report progress
+        stream: If True, stream partial responses as they arrive
+        stream_callback: Optional callable to receive streaming text chunks
+        safety_settings: Optional Gemini safety settings configuration
         
     Returns:
         Either a string containing the transcription or a TranscriptionOutput object
@@ -59,7 +61,10 @@ def transcribe(
         create_output=lambda x: TranscriptionOutput(transcription=x),
         model_prompt=model_prompt,
         model_name=model,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        stream=stream,
+        stream_callback=stream_callback,
+        safety_settings=safety_settings,
     )
     
     # Assert result is not None

@@ -1,7 +1,8 @@
 import os
 import tempfile
 import logging
-from typing import Callable, TypeVar, Any, Dict, Optional, Union, Generic, cast
+import mimetypes
+from typing import Callable, TypeVar, Any, Dict, Optional, Union, Generic, cast, Iterable
 from urllib.parse import urlparse
 from yt_dlp import YoutubeDL
 import google.generativeai as genai
@@ -34,6 +35,65 @@ class ModelInferenceError(MantisError):
 class ValidationError(MantisError):
     """Exception raised when there's a validation error."""
     pass
+
+
+_GENAI_CONFIGURED = False
+
+
+def configure_genai(
+    *,
+    api_key: Optional[str] = None,
+    vertex_project: Optional[str] = None,
+    vertex_location: Optional[str] = None,
+    transport: Optional[str] = None,
+) -> None:
+    """Configure the Google Generative AI SDK with either an API key or Vertex AI settings."""
+
+    global _GENAI_CONFIGURED
+
+    config_kwargs: Dict[str, Any] = {}
+
+    resolved_api_key = api_key or os.getenv("GEMINI_API_KEY")
+    resolved_vertex_project = vertex_project or os.getenv("VERTEX_PROJECT")
+    resolved_vertex_location = vertex_location or os.getenv("VERTEX_LOCATION")
+
+    if resolved_api_key:
+        config_kwargs["api_key"] = resolved_api_key
+
+    if resolved_vertex_project or resolved_vertex_location:
+        if not (resolved_vertex_project and resolved_vertex_location):
+            raise ValidationError(
+                "Both vertex_project and vertex_location must be provided to configure Vertex AI"
+            )
+        config_kwargs["vertex_ai"] = {
+            "project": resolved_vertex_project,
+            "location": resolved_vertex_location,
+        }
+
+    if not config_kwargs:
+        raise ValidationError(
+            "Gemini configuration is missing. Provide an API key or Vertex project/location."
+        )
+
+    if transport:
+        config_kwargs["transport"] = transport
+
+    genai.configure(**config_kwargs)
+    _GENAI_CONFIGURED = True
+
+
+def ensure_genai_configured() -> None:
+    """Ensure the SDK is configured before issuing requests."""
+
+    if _GENAI_CONFIGURED:
+        return
+
+    try:
+        configure_genai()
+    except ValidationError as error:
+        raise ValidationError(
+            "Gemini API not configured. Call mantis.configure(...) or set environment variables."
+        ) from error
 
 def is_youtube_url(url: str) -> bool:
     """
@@ -145,8 +205,14 @@ def process_audio_with_gemini(
     validate_input: InputValidator,
     create_output: OutputCreator[T],
     model_prompt: str,
-    model_name: str = "gemini-1.5-flash",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    model_name: str = "gemini-1.5-flash-latest",
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    *,
+    stream: bool = False,
+    stream_callback: Optional[Callable[[str], None]] = None,
+    response_schema: Optional[Any] = None,
+    response_mime_type: Optional[str] = None,
+    safety_settings: Optional[Any] = None,
 ) -> T:
     """
     Process audio with Gemini AI using the provided input/output handlers.
@@ -178,8 +244,10 @@ def process_audio_with_gemini(
     assert isinstance(model_name, str), "Model name must be a string"
     assert progress_callback is None or callable(progress_callback), "progress_callback must be None or a callable function"
     
+    ensure_genai_configured()
+
     temp_file_path = None
-    output = None
+    output: Optional[T] = None
     
     try:
         # Report initial progress
@@ -224,34 +292,75 @@ def process_audio_with_gemini(
             # Assert model is not None
             assert model is not None, "Failed to create Gemini model"
             
+            mime_type, _ = mimetypes.guess_type(file_to_process)
+            resolved_mime_type = mime_type or "audio/mpeg"
+
             # Open the file in binary mode
             with open(file_to_process, "rb") as f:
                 file_content = f.read()
-            
+
             # Assert file content is not empty
             assert file_content, "Audio file content cannot be empty"
-            
+
             # Create a file part for the model
-            file_part = {"mime_type": "audio/mpeg", "data": file_content}
-            
-            # Generate content with the file and prompt
-            response = model.generate_content([model_prompt, file_part])
-            
-            # Assert response is not None
-            assert response is not None, "Model response cannot be None"
-            assert hasattr(response, 'text'), "Model response must have a text attribute"
-            assert response.text, "Model response text cannot be empty"
-            
-            # Report completion
-            if progress_callback:
-                progress_callback(ProcessingProgress("Processing complete", 1.0))
-            
-            # Create and return output
-            output = create_output(response.text)
-            
+            file_part: Dict[str, Any] = {"mime_type": resolved_mime_type, "data": file_content}
+
+            generate_kwargs: Dict[str, Any] = {}
+            if response_schema is not None:
+                generate_kwargs["response_schema"] = response_schema
+            if response_mime_type is not None:
+                generate_kwargs["response_mime_type"] = response_mime_type
+            if safety_settings is not None:
+                generate_kwargs["safety_settings"] = safety_settings
+
+            if stream:
+                chunks: Iterable[Any] = model.generate_content(
+                    [model_prompt, file_part],
+                    stream=True,
+                    **generate_kwargs,
+                )
+                collected_text: str = ""
+                for chunk in chunks:
+                    chunk_text = getattr(chunk, "text", None)
+                    if not chunk_text and hasattr(chunk, "candidates"):
+                        candidate_texts = []
+                        for candidate in getattr(chunk, "candidates", []):
+                            if hasattr(candidate, "content") and getattr(candidate.content, "parts", None):
+                                for part in candidate.content.parts:
+                                    part_text = getattr(part, "text", None)
+                                    if part_text:
+                                        candidate_texts.append(part_text)
+                        chunk_text = "".join(candidate_texts)
+
+                    if chunk_text:
+                        collected_text += chunk_text
+                        if stream_callback:
+                            stream_callback(chunk_text)
+
+                # Assert collected text is not empty
+                assert collected_text, "Streaming response returned no text"
+
+                if progress_callback:
+                    progress_callback(ProcessingProgress("Processing complete", 1.0))
+
+                output = create_output(collected_text)
+            else:
+                response = model.generate_content([model_prompt, file_part], **generate_kwargs)
+
+                # Assert response is not None
+                assert response is not None, "Model response cannot be None"
+                assert hasattr(response, 'text'), "Model response must have a text attribute"
+                assert response.text, "Model response text cannot be empty"
+
+                if progress_callback:
+                    progress_callback(ProcessingProgress("Processing complete", 1.0))
+
+                # Create and return output
+                output = create_output(response.text)
+
             # Assert output is not None
             assert output is not None, "Created output cannot be None"
-            
+
             return output
         except Exception as e:
             logger.error(f"Model inference error: {e}")

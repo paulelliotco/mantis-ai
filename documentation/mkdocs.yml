@@ -50,6 +50,7 @@ nav:
   - Getting Started:
     - Installation: installation.md
     - Quick Start: quickstart.md
+    - Migration Guide: migration-guide.md
   - Concepts: concepts.md
   - API Reference: api-reference.md
   - Use Cases:
