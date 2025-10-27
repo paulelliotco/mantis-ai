@@ -146,7 +146,8 @@ def process_audio_with_gemini(
     create_output: OutputCreator[T],
     model_prompt: str,
     model_name: str = "gemini-1.5-flash",
-    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None
+    progress_callback: Optional[Callable[[ProcessingProgress], None]] = None,
+    response_schema: Optional[Dict[str, Any]] = None,
 ) -> T:
     """
     Process audio with Gemini AI using the provided input/output handlers.
@@ -158,6 +159,7 @@ def process_audio_with_gemini(
         model_prompt: Prompt to send to the model
         model_name: Name of the Gemini model to use
         progress_callback: Optional callback function to report progress
+        response_schema: Optional JSON schema describing the desired structured response
         
     Returns:
         T: The processed output
@@ -219,7 +221,18 @@ def process_audio_with_gemini(
         
         # Process with Gemini using the newer API
         try:
-            model = genai.GenerativeModel(model_name)
+            generation_config = None
+            if response_schema:
+                generation_config = {
+                    "response_mime_type": "application/json",
+                    "response_schema": response_schema,
+                }
+
+            model_kwargs: Dict[str, Any] = {}
+            if generation_config:
+                model_kwargs["generation_config"] = generation_config
+
+            model = genai.GenerativeModel(model_name, **model_kwargs)
             
             # Assert model is not None
             assert model is not None, "Failed to create Gemini model"
@@ -235,7 +248,11 @@ def process_audio_with_gemini(
             file_part = {"mime_type": "audio/mpeg", "data": file_content}
             
             # Generate content with the file and prompt
-            response = model.generate_content([model_prompt, file_part])
+            generate_kwargs: Dict[str, Any] = {}
+            if generation_config:
+                generate_kwargs["generation_config"] = generation_config
+
+            response = model.generate_content([model_prompt, file_part], **generate_kwargs)
             
             # Assert response is not None
             assert response is not None, "Model response cannot be None"
