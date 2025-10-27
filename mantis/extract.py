@@ -1,16 +1,28 @@
-import os
+import json
 from typing import Union, Optional, Callable
-import google.generativeai as genai
 from .models import ExtractInput, ExtractOutput, ProcessingProgress
-from .utils import process_audio_with_gemini, MantisError
+from .utils import (
+    process_audio_with_gemini,
+    MantisError,
+    DEFAULT_SAFETY_SETTINGS,
+    DEFAULT_STRING_RESPONSE_SCHEMA,
+    logger,
+)
 
-# Configure Gemini AI
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY"))
+
+def _build_extract_output(raw_text: str, structured_output: bool) -> ExtractOutput:
+    structured_data = None
+    if structured_output:
+        try:
+            structured_data = json.loads(raw_text)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("Failed to parse structured extraction output as JSON")
+    return ExtractOutput(extraction=raw_text, structured_data=structured_data)
 
 
 def extract(
-    audio_file: str, 
-    prompt: str, 
+    audio_file: str,
+    prompt: str,
     raw_output: bool = False,
     model: str = "gemini-1.5-flash",
     structured_output: bool = False,
@@ -52,21 +64,31 @@ def extract(
     # Assert enhanced prompt is not empty
     assert enhanced_prompt, "Enhanced prompt cannot be empty"
     
+    response_schema = DEFAULT_STRING_RESPONSE_SCHEMA
+    generation_config = {"response_mime_type": "text/plain"}
+
+    if structured_output:
+        response_schema = {
+            "type": "OBJECT",
+            "additionalProperties": True,
+        }
+        generation_config = {"response_mime_type": "application/json"}
+
     result = process_audio_with_gemini(
         audio_file=audio_file,
         validate_input=lambda x: ExtractInput(
-            audio_file=x, 
-            prompt=prompt, 
+            audio_file=x,
+            prompt=prompt,
             model=model,
             structured_output=structured_output
         ),
-        create_output=lambda x: ExtractOutput(
-            extraction=x,
-            structured_data=None  # In a real implementation, we would attempt to parse JSON here
-        ),
+        create_output=lambda x: _build_extract_output(x, structured_output),
         model_prompt=enhanced_prompt,
         model_name=model,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        safety_settings=DEFAULT_SAFETY_SETTINGS,
+        response_schema=response_schema,
+        generation_config=generation_config,
     )
     
     # Assert result is not None
